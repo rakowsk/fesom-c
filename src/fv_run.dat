@@ -15,21 +15,20 @@
 ! title_nod2d.out and etc.
 !==============================================================================!
 
- TITLE = HB
+ TITLE = WF1
  
 !==============================================================================!
 !                 PARAMETERS CONTROLLING TIME STEPS                            !
 ! dt_2D  - time step for the barotropic mode in seconds                        !
 ! dt  - time step for the baroclinic mode in seconds                           !
-! nsteps - total amount of barotropic steps                                    !
-! time_jd0 - the Julian day corresponding to the start of simulated period     !        
+! nsteps - total amount of barotropic steps   2419200                                 !
+! time_jd0 - the Julian day corresponding to the start of simulated period 2459594.5!        
 !==============================================================================!
 
- dt_2D = 1.3493125 
- dt = 5.493125
- nsteps = 5256000 
- JD0 = 2452853.0
-
+ dt_2D = 0.05
+ dt = 0.5
+ nsteps = 2419200
+ JD0 = 2460080.0
 !===============================================================================!
 !                 PARAMETERS CONTROLLING INPUT/OUTPUT                           !
 ! INDIR is a directory, where input files should be situated                    !
@@ -49,10 +48,10 @@
  OUTDIR      = ./Output/
  MESHPATH    = ./RUN/
 
- IREP = 10         
- IREC = 15000
- IRESTART = 15000
- RESTART  =  cold_start 
+ IREP = 1200    
+ IREC = 36000
+ IRESTART = 14375
+ RESTART  = cold_start 
 
  VERBOSITY = 1 
 
@@ -63,7 +62,7 @@
 !                         F: SPHERICAL                                          !
 !===============================================================================!
 
- cartesian = T
+ cartesian = F
 
 !===============================================================================!
 !       Coriolis                                                                !     
@@ -73,7 +72,7 @@
 !===============================================================================!
 
  Coriolis_TF = T
- lat_cartesian = 50.0
+ lat_cartesian = 55.6
 
 !===============================================================================!
 !        2D MOMENTUM ADVECTION                                                  !
@@ -115,13 +114,14 @@
 !        TRACER ADVECTION                                                       !
 !                       1 - UPWIND : SECOND ORDER SCHEME                        !
 !                       2 - MUSCL  : THIRD ORDER SCHEME                         !
-!                       3 - MIXED  : 0.85 MUSCL + 0.15 UPWIND, for example.     !
-!                       4 - MIURA                                                               !
+!                       3 - MUSCL_FCT (mu_w*MUSCL + up_w*UPWIND)                !
+!                       4 - MIURA                                               !
+!                       5 - MIURA_FCT                                           !
 ! if(tracer_adv==3) then please, provide weights for the muscl and upwind parts !
 ! mu_w+up_w should be equal to 1.                                               !
 !===============================================================================!
 
- tracer_adv =  1
+ tracer_adv = 1
  mu_w=0.85
  up_w=0.15
  
@@ -134,24 +134,24 @@
 ! another approach is applied, for details see fv_average_dynamic)                         !
 ! BFC                                                                                      !
 !                       1 - Cd = prescribed Cd                                             !
-!                       2 - Cd is calculated using z0b_min+z0s_min                         !
+!                       2 - Cd is calculated using z0b_min                         !
 !==========================================================================================!
 
- Cd = .005
- z0b_min = .01
- z0s_min = .01
+ Cd = .0035
+ z0b_min = .05
+ z0s_min = .05
  za = .00
- BFC = 2
+ BFC = 1
 
 !============================================================================================!
 !                 PARAMETERS CONTROLLING DIFFUSIVITY                                         !
 !============================================================================================!
 
- Abh0 = 1.e11
+ Abh0 = 2.e9
  C_Smag = .2
- A_hor =  10
+ A_hor =  0.010
  tau_c = .4
- snul    = 5.e-4
+ snul    = 1.e-5
  filt_2D = T
  filt_bi_2D = F
  bih_2D = F
@@ -170,12 +170,12 @@
 !reference density (density_0).                                                              !                 
 !============================================================================================!
 
- BAROTROPIC = F
+ BAROTROPIC = T
  BAROTROPIC_3D = F
- SALINITY_ON = T
- TEMP_ON = T
+ SALINITY_ON = F
+ TEMP_ON = F
  S_const = 30.0
- T_const = 20.0
+ T_const = 15.0
  
 !============================================================================================!
 !             CONTROLLING VERTICAL TURBULENCE                                                !
@@ -183,7 +183,7 @@
 !              2 ---> GOTM                                                                   !
 !              3 ---> b-l                                                                    !
 !============================================================================================!        
-Vert_turb = 2
+Vert_turb = 3
 
 !============================================================================================!
 !                  PARAMETERS CONTROLLING DENSITY CALCULATION                                !
@@ -213,11 +213,11 @@ Vert_turb = 2
 !============================================================================================! 
 
  type_vd =  sigma 
- nsigma = 21  
+ nsigma = 15  
  ind_sigma = 1    
- pow_sig = 2. 
- lev_bot=1.
- lev_sur=1.
+ pow_sig = 1. 
+ lev_bot=0.5
+ lev_sur=0.5
  KSw = 0.5 0.5 1.5 1.5 ! the near surface layers with constant depth
  KBw = 0.5 0.5 1.5 1.5 ! the near bottom layers with constant depth
  D_ref_max = 40.0
@@ -233,20 +233,21 @@ Vert_turb = 2
 ! salinity, temperature distribution. This option will work well only, if you know bottom friction       ! 
 ! coefficient and optimal scheme to introduce it in your particular domain.                              !
 ! If you would like to include rivers only through open boundaries, please, specify Riv = F.             !
+! Attention: the grid description should start from triangles otherwise the numbering of the elements    !
+! will be changed.                                                                                       ! 
 !========================================================================================================!
 
- Riv = T
+ Riv = F
  Stratif_sigma = F
  Q_sigma = F
  Riv_OB = F
  riv_relax = 3.0
  relax2riv = 30.0
- Time_riv_begin = 2452853.0
+ Time_riv_begin = 0.0
 
 !=========Do you want to apply atmospheric forcing?=======================================================!
 
 key_atm = F ! key to switch OFF or ON atmospheric forcing, check namelist_bc.nc
-Atm_pr = 0  ! What is this ? I have no idea (Ivan). 
 
 !=========Open Boundary conditions========================================================================!
 
@@ -271,7 +272,9 @@ key_ic = F    ! key to switch ON or OFF module for interpolation of initial cond
 
  TF_presence = T
  Time_tf  = non-julian
- Harmonics_tf = S2
+! Harmonics_tf = M2
+ Harmonics_tf = M2 S2 N2 K2 K1 O1 P1 Q1 MM MF M4 MN MS 2N S1
+
  T_potential = F
  
 !=========================================================================================================!
@@ -316,8 +319,8 @@ b=7.9
 ! Dcr, Dmin - Critical depth and Minimal depth                                  !
 !===============================================================================!
 
- Dcr = 0.1
- Dmin= 0.25
+ Dcr = 0.07
+ Dmin= 0.03
 
 !=========Parameters Controlling Output Related To Tidal Forcing======================! 
 !This option allows to organize output within tidal period.                           !
@@ -337,9 +340,9 @@ T_out = F          ! Do you want to organize output? True or False
 T_out_el_va = F    ! Output for the elevation and averaged velocities. True or False
 T_out_3Dvel = F    ! Output for the 3D velocities. True or False
 T_period = 12.42   ! Period of interest in hours
-T_num = 12         ! Amount of periods to equilibrate the system
+T_num = 5         ! Amount of periods to equilibrate the system
 T_aval = 64        ! Amount of records of each value per period for analysis
-T_step = 3.3493125 ! Appropriate baroclinic time step (dt), it should be equal to T_period*3600/(T_aval*i), 
+T_step = 46.575 ! Appropriate baroclinic time step (dt), it should be equal to T_period*3600/(T_aval*i), 
                    ! where i is arbitrary integer > 0
 
 !============ Parameters Controlling Wetting/Drying=============================!
@@ -349,20 +352,18 @@ T_step = 3.3493125 ! Appropriate baroclinic time step (dt), it should be equal t
 !====VARIABLES CONTROLLING NETCDF OUTPUT========================================!
 
  key_nc_output = T   ! check outputfilelist.dat
- NETCDF_var_amount = 3
- NETCDF_var = el ua va 
  
 !==== Parameter controlling sponge layer======================================================!
 
  SL_obn = T
- SL_obn_user_def = T  !If you would like to prescribe the sponge layer by your own
+ SL_obn_user_def = F  !If you would like to prescribe the sponge layer by your own
                       !please, set T and keep SL_obn also true
- SL_radius = 20000.0  ! Radius defines the area around OBN, where nudging works, [m] 
+ SL_radius = 2000.0  ! Radius defines the area around OBN, where nudging works, [m] 
 
 !==== Parameters, which are controlling stabilization at the ob================================!
 
 mixed_BP_grad_OB = F
-Cd_bz = 10.0  
+Cd_bz = 0.0  
 Bp_bz = 0.0 
 
 !==== Parameter controlling Open Boundary/Solid Boundary relaxation===========================!
@@ -373,16 +374,16 @@ Bp_bz = 0.0
 ! relax2clim - relaxation at the solid boundary should be provided by user as input file      !
 !=============================================================================================!
 
-cl_relax = T
-clim_relax = 0.05
-relax2clim_ac = 0.5
+cl_relax = F
+clim_relax = 0.0416666666666
+relax2clim_ac = 0.0208333333
 cl_solid_boder_relax = F
 
 !==== Parameter controlling Open Boundary Temp/Salt Series Nudging==============!
 
  OB_nudg = F
  ALPHA_nudg = .0014  ! Alpha defines how strong the nudging in the interio domain, can be from 0 to 1 (excluding 0 and 1, 1 corresponds to 'no nudging')
- RADIUS = 50000. ! Radius define the area around OBN, where nudging works, [m]        
+ RADIUS = 30000. ! Radius define the area around OBN, where nudging works, [m]        
          
 !================================= SEDIMENT===================================================!
 ! comp_sediment = T, if you would like to turn on sediments
@@ -393,9 +394,9 @@ cl_solid_boder_relax = F
  comp_sediment = F
  sed_boun_flux = F
  cl_relax_sed =F
- d_m = 15.0e-5                 !         d_m  - grain -size [m]
- plop_s = 2650.0              !         plop_s - density of individual grains [kg/m3]
- e_p = 0.4                  !         e_p       - porous of the grain
+ d_m = 0.5e-4                 !         d_m  - grain -size [m]
+ plop_s = 2100.0             !         plop_s - density of individual grains [kg/m3]
+ e_p = 0.4
  Er0 = 0.0005             ! Er0 - empirical floc erosion rate between 10**(-4) and 10**(-2)
  sed_relax = 1.            ! if set_boun_flax = T
  relax2sed = 5.            ! if set_boun_flax = T     

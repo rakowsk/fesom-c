@@ -2,21 +2,17 @@
 
 include Makefile.in
 
-.SUFFIXES: .F90 .o
+.SUFFIXES: .f90 .F90 .o
 
-LIBS = $(GOTMLIB)  $(NETCDFLIB) $(PNETCDFLIB)
-INCS = $(GOTMINCS) $(NETCDFINC) $(PNETCDFINC)
+LIBS = $(GOTMLIB)  $(NETCDFLIB)
+INCS = $(GOTMINCS) $(NETCDFINC)
 
-OBJECTS= fv_var.o                  \
-      gen_modules_partitioning_c.o \
-      gen_modules_rotate_grid_c.o  \
-      gen_halo_exchange_c.o        \
+OBJECTS= fv_var.o               \
       fv_utilit.o               \
-      oce_mesh_c.o                 \
       fv_vert_coord.o           \
       fv_sbc.o                  \
       fv_obc.o                  \
-      fv_rivers.o               \
+      fv_obc_2d.o               \
       fv_ic.o                   \
       fv_read_run.o             \
       fv_ini.o                  \
@@ -30,47 +26,39 @@ OBJECTS= fv_var.o                  \
       fv_pressure_new.o         \
       fv_viscosity.o            \
       fv_tracer.o               \
-      fv_restart.o               \
       fv_tide_potential.o       \
-      fv_sbcmpi.o          \
       fv_ncoutput.o             \
-      fv_ncoutputmpi.o          \
-      fv_ice_setup_step.o \
       fv_sediment.o      \
       fv_sediment_adv.o      \
-      fv_output_nc_TMP.o \
       fv_main.o  
-
-
 
 
 INCS_INI = $(METISINC)
 LIBS_INI = $(METISLIB)
 
 OBJ_C_INI = metis_wrapper.o  
-SRC_INI =  fv_var.F90 \
-	   fv_utilit.F90 \
-	   fv_read_init.F90 \
-	   fv_mesh_array.F90 \
-	   fv_distribute_mesh.F90 \
-           fv_comm.F90 \
-           fv_init.F90
+SRC_INI =  fv_var.f90 \
+	   fv_utilit.f90 \
+	   fv_read_init.f90 \
+	   fv_mesh_array.f90 \
+	   fv_distribute_mesh.f90 \
+           fv_comm.f90 \
+           fv_init.f90
 
 
 #--------------------------------------------------
 
-#$(EXE): $(OBJECTS)  $(GOTMDIR)/lib/libturbulence.a
-$(EXE): $(OBJECTS) 
+$(EXE): $(OBJECTS)  $(GOTMDIR)/lib/libturbulence.a
 	 $(LINK) $(FCFLAGS) -o $(EXE) $(OBJECTS) $(LIBS)
 
 $(EXE_INI): $(OBJ_C_INI) $(SRC_INI)
 	 $(LINK) $(FCFLAGS) -o $(EXE_INI) $(SRC_INI) $(OBJ_C_INI) $(LIBS_INI)
 
-#GOTM_turbulence: 
-#	$(MAKE) -C $(GOTMDIR) all
+GOTM_turbulence: 
+	$(MAKE) -C $(GOTMDIR) all
 
 all:
-#	$(MAKE) GOTM_turbulence
+	$(MAKE) GOTM_turbulence
 	$(MAKE) $(EXE)
 
 clean :
@@ -78,7 +66,7 @@ clean :
 
 allclean :
 	$(MAKE) clean
-#	$(MAKE) -C $(GOTMDIR) realclean
+	$(MAKE) -C $(GOTMDIR) clean
 
 
 run : $(EXE)         
@@ -86,8 +74,8 @@ run : $(EXE)
 
 #--------------------------------------------------
 
-.F90.o: $(MODULES)
-	$(FC)  $(FCFLAGS) $(INCS) -c $*.F90
+.f90.o: $(MODULES)
+	$(FC)  $(FCFLAGS) $(INCS) -c $*.f90
 
 .c.o:
 	$(CC) $(CCFLAGS) $(INCS_INI) -c $*.c

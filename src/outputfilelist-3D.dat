@@ -1,7 +1,7 @@
 !total number of files:
 1
 !=========== Field File Name =================================================================== 
-dyn23-WF1-prt1.nc
+dyn23-WF1-3D-part2.nc
 ! If snapshot = 1, averaged needed = 2
 1
 ! Type of file 0 - full domain, 3 - station (2,3 does not work yet)
@@ -13,6 +13,7 @@ dyn23-WF1-prt1.nc
 ! special frequency (not in use)
 0
 ! total number of variables in file
-3
+5
 ! list of variables , amount of numbers should not be changed
-1,6,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+1,2,3,6,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
