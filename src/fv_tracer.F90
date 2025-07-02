@@ -27,10 +27,7 @@ IMPLICIT NONE
 
 character*1  :: tracer_type
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! edge_up_dn_tri is not calculated in fv_mesh_array, due to the error in the coord_elem(:,:,:) , zeors (0) in coordinates of elements beggire then my_elem2d
+
 
 ! =================
 ! AB interpolation
@@ -388,11 +385,11 @@ end subroutine solve_tracer_muscl
 !
 
 SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
-
+  
   USE o_MESH
   USE o_ARRAYS
   USE o_PARAM
-
+  
   USE g_PARSUP
   use g_comm_auto
 
@@ -414,7 +411,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
 
 
   integer :: edglim
-
+  
   !NR OpenMP domain decomposition of nodes
   me_nod1=1
   me_nod2=myDim_nod2D+eDim_nod2D
@@ -455,12 +452,12 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
 #ifdef USE_MPI
      if (myList_edge2D(ed)>edge2D_in) cycle
 #endif
-
+     
      nod1 = edge_nodes(1,ed)
      nod2 = edge_nodes(2,ed)
      el1  = edge_tri(1,ed)
      el2  = edge_tri(2,ed)
-
+     
      !a  = r_earth*elem_cos(el1)   !NR not used
      !b  = r_earth*elem_cos(el2)
 
@@ -508,7 +505,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
   call exchange_nod(ttrhs)
   call exchange_nod(strhs)
 
-  !SH This loop is duplicated! Should be solved differently
+  !SH This loop is duplicated! Should be solved differently 
   DO ed = 1,edglim
 
      if (myList_edge2D(ed)>edge2D_in) then
@@ -530,7 +527,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
            ! ============
            c1 =   V_n_filt(nz,el1)*edge_cross_dxdy(1,ed) - U_n_filt(nz,el1)*edge_cross_dxdy(2,ed)
            aux_c(nz) = Je(nz,el1)*c1
-
+           
            ! ============
            ! MUSCL type reconstruction
            ! ============
@@ -553,7 +550,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
         strhs( 1:nsigma-1,nod2) = strhs( 1:nsigma-1,nod2) - s_aux(1:nsigma-1)
 
      end if
-
+        
   END DO
 
   call exchange_nod(trhs_c)
@@ -579,7 +576,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
         ! ============
         c1 =   V_n_filt(nz,el1)*edge_cross_dxdy(1,ed) - U_n_filt(nz,el1)*edge_cross_dxdy(2,ed)
         aux_c(nz) = Je(nz,el1)*c1
-
+        
         ! ============
         ! MUSCL type reconstruction
         ! ============
@@ -727,7 +724,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
   ! ===================
   ! Vertical advection and diffusion
   ! ===================
-
+  
   tvert(1:nsigma)   = 0.0_WP
   svert(1:nsigma)   = 0.0_WP
 
@@ -837,7 +834,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
 
 #ifdef USE_MPI
 
-     !SH This loop is duplicated! Should be solved differently
+     !SH This loop is duplicated! Should be solved differently 
      DO ed = 1,edglim
 
         if (myList_edge2D(ed)>edge2D_in) then
@@ -873,7 +870,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
      END DO
 
 #endif
-
+     
      DO n=1, myDim_nod2D+eDim_nod2D
         if (Vel_nor(n) > 0.0_WP) then
            DO nz=1,nsigma-1
@@ -902,7 +899,7 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
         stf(nz,n)    = stf(nz,n) + strhs(nz,n)*dt + S_aver
      END DO
   END DO
-
+  
   !===============================================
   ! relaxation to climat near solid boundary
   !===============================================
@@ -922,6 +919,85 @@ SUBROUTINE solve_tracer_upwind(ttf, ttfold, stf, stfold)
 
 end subroutine solve_tracer_upwind
 
+subroutine tracer_riv(ttf, ttfold, stf, stfold)
+
+  !VF, 31.08.16
+  
+  USE o_MESH
+  USE o_ARRAYS
+  USE o_PARAM
+
+  USE g_PARSUP
+
+  IMPLICIT NONE
+
+  real(kind=WP), intent(inout) :: ttf(nsigma-1, nod2D)
+  real(kind=WP), intent(in) :: ttfold(nsigma-1, nod2D)
+  real(kind=WP), intent(inout) :: stf(nsigma-1, nod2D)
+  real(kind=WP), intent(in) :: stfold(nsigma-1, nod2D)
+
+  integer      :: nod1, nod2, n, nz, ed, el1, i, nn
+  real(kind=WP) :: dmean, un1
+  real(kind=WP) :: Vel_nor(nod2D)
+
+  if (riv_OB) then
+
+     do n=1,myDim_nod2D+eDim_nod2D
+        Vel_nor(n) = 0.0_WP
+     enddo
+
+     DO ed = 1+edge2D_in, edge2D
+        nod1 = edge_nodes(1,ed)
+        nod2 = edge_nodes(2,ed)
+        el1  = edge_tri(1,ed)
+        
+        dmean = max(Dmin, 0.5_WP*(eta_n(nod1)+depth(nod1) + eta_n(nod2)+depth(nod2)))
+
+        un1 = (V_filt_2D(el1)*edge_cross_dxdy(1,ed)- U_filt_2D(el1)*edge_cross_dxdy(2,ed))*dmean
+
+        Vel_nor(nod1) = Vel_nor(nod1) + un1/area(nod1)
+        Vel_nor(nod2) = Vel_nor(nod2) - un1/area(nod2)
+     END DO
+
+     !VF, riv_OB
+
+     DO n=1, riv_amount_ob
+        nn=riv_node_ob(n)
+        if (Vel_nor(nn) > 0.0_WP) then
+           DO nz=1,nsigma-1
+              ttf(nz,nn) = ttf(nz,nn) + dt*relax2riv*(Tr_distr2(nz,n)-ttfold(nz,nn))
+              stf(nz,nn) = stf(nz,nn) + dt*relax2riv*(Sr_distr2(nz,n)-stfold(nz,nn))
+           END DO
+        else
+           DO nz=1,nsigma-1
+              ttf(nz,nn) = ttfold(nz,nn) + dt*riv_relax*(Tr_distr2(nz,n)-ttfold(nz,nn))
+              stf(nz,nn) = stfold(nz,nn) + dt*riv_relax*(Sr_distr2(nz,n)-stfold(nz,nn))
+           END DO
+        endif
+     END DO
+
+  endif
+
+  !VF, riv
+  if (riv) then
+
+
+     do i=1, riv_num_nodes
+        DO nz=1,nsigma-1
+           !IK remove T from rivers
+           !           ttf(nz,riv_node(i)) = ttf(nz,riv_node(i)) &
+           !                + dt*(Tr_node_sig(nz,i)-ttfold(nz,riv_node(i))*Qr_node_sig(nz,i)) &
+           !                   /    (area(riv_node(i))*Jc(nz,riv_node(i)))
+
+           stf(nz,riv_node(i)) = stf(nz,riv_node(i)) &
+                + dt*(Sr_node_sig(nz,i) - stfold(nz,riv_node(i))*Qr_node_sig(nz,i)) &
+                /    (area(riv_node(i))*Jc(nz,riv_node(i)))
+        enddo
+     enddo
+
+  endif
+
+end subroutine tracer_riv
 !=====================================================================================
 !
 ! Alexey Androsov
@@ -936,7 +1012,7 @@ SUBROUTINE solve_tracer_miura(ttf, ttfold, tracer_type)
   use g_parsup
 
   IMPLICIT NONE
-
+  
   integer      :: n, nz, edge, ed, nod(2)
   integer      :: nl1, nl2, el1, el2, nod1, nod2
   real(kind=WP) :: c1, c2, deltaX1, deltaY1, deltaX2, deltaY2, flux=0.0 , delta_sigma
@@ -1005,7 +1081,7 @@ SUBROUTINE solve_tracer_miura(ttf, ttfold, tracer_type)
 
      ! dmean = sum(depth(nod) + eta_n(nod))/2.0_WP
      ! dmean = max(Dmin,dmean)
-
+ 
      ! crt1 = (dmean/(5.0_WP + Dmin) - 1.0_WP)/20.0_WP
      ! crt1=min(1.0_WP,abs(crt1))
 
@@ -1107,7 +1183,7 @@ SUBROUTINE solve_tracer_miura(ttf, ttfold, tracer_type)
      end if
 
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+ 
      ! ============
      ! First segment
      ! ============
@@ -1169,7 +1245,7 @@ SUBROUTINE solve_tracer_miura(ttf, ttfold, tracer_type)
      tvert(nsigma)=0.0_WP
 
      DO nz=2, nsigma-1
-
+        
         ! ============
         ! QUICK upwind (3rd order)
         ! ============
@@ -1333,7 +1409,7 @@ subroutine tracer_impl_vert_diff
   real(kind=WP)              ::  t1, s1, dt_inv, m, swr_source,frw_source(nsigma-1),frw
   integer                    ::  nz, n
   real(kind=WP)              :: corr_TS_loc
-
+  
   a = 0.0_WP
   b = 0.0_WP
   c = 0.0_WP
@@ -1343,24 +1419,24 @@ subroutine tracer_impl_vert_diff
   tp = 0.0_WP
   sp = 0.0_WP
 
-!  corr_TS_loc = TF(1,1)
+  corr_TS_loc = TF(1,1)
 
   do n=1,myDim_nod2D
      ! if (mask_wd_node(n) /= 0.0_WP) then
-!     corr_TS_loc = max(corr_TS,maxval(TF(:,n)))
+     corr_TS_loc = max(corr_TS,maxval(TF(:,n)))
      TF(:,n) = TF(:,n) - T_aver
      SF(:,n) = SF(:,n) - S_aver
      !endif
   enddo
 
-!#ifdef USE_MPI
-!  call MPI_AllREDUCE(corr_TS_loc,corr_TS, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-!       MPI_COMM_FESOM_C, MPIerr)
-!#else
-!  corr_TS = corr_TS_loc
-!#endif
-
-!  corr_TS = corr_TS/T_maxini
+#ifdef USE_MPI
+  call MPI_AllREDUCE(corr_TS_loc,corr_TS, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+       MPI_COMM_FESOM_C, MPIerr)
+#else
+  corr_TS = corr_TS_loc
+#endif
+  
+  corr_TS = corr_TS/T_maxini
 
   ! if (corr_TS .gt. 1.0_WP) corr_TS=corr_TS*10.0_WP
   !VF, create freshwater source(precipitation) and heat source (short wave radiation)
@@ -1373,7 +1449,7 @@ subroutine tracer_impl_vert_diff
 
   DO n=1,myDim_nod2D
      ! if (mask_wd_node(n) /= 0.0_WP) then
-     if ((key_atm).and.(mask_wd_node(n) /= 0.0_WP)) call calc_evap_precip(n,frw)!!!!!*******
+!SH SKIPPED FOR NOW     if ((key_atm).and.(mask_wd_node(n) /= 0.0_WP)) call calc_evap_precip(n,frw)
      frw_source(1)=frw
      ! Regular part of coefficients:
      DO nz=2, nsigma-2
@@ -1390,26 +1466,25 @@ subroutine tracer_impl_vert_diff
      b(nsigma-1) = -a(nsigma-1)+1.0_WP !dt_inv
      c(nsigma-1) = 0.0_WP
      ! ===========================================
-     !IK, it is done in a very bad way, swr is changing and not updated later on, IK
      !VF, check do we have absorption of swr by sea bed
      !   if ((swr_bot_refl_part>0.0_WP).and.(key_atm)) call sw_bot_corr(n)
      if ((key_atm).and. (mask_wd_node(n) /= 0.0_WP)) then
 
         !VF, add heat and fresh sources
         nz=1
-        call calc_heat_flux_sw(nz,n,swr_source)
+!SH SKIPPED FOR NOW        call calc_heat_flux_sw(nz,n,swr_source)
         tr(nz)=c(nz)*(-TF(nz+1,n)+TF(nz,n))+dt*swr_source
         sr(nz)=c(nz)*(-SF(nz+1,n)+SF(nz,n))+dt*frw_source(nz)
 
         DO nz=2,nsigma-2
-           call calc_heat_flux_sw(nz,n,swr_source)
+!SH SKIPPED FOR NOW           call calc_heat_flux_sw(nz,n,swr_source)
            tr(nz)=-a(nz)*TF(nz-1,n)-c(nz)*TF(nz+1,n)+(a(nz)+c(nz))*TF(nz,n)+dt*swr_source
-           sr(nz)=-a(nz)*SF(nz-1,n)-c(nz)*SF(nz+1,n)+(a(nz)+c(nz))*SF(nz,n)!+dt*frw_source(nz)
+           sr(nz)=-a(nz)*SF(nz-1,n)-c(nz)*SF(nz+1,n)+(a(nz)+c(nz))*SF(nz,n)+dt*frw_source(nz)
         END DO
         nz=nsigma-1
-        call calc_heat_flux_sw(nz,n,swr_source)
+!SH SKIPPED FOR NOW        call calc_heat_flux_sw(nz,n,swr_source)
         tr(nz)=a(nz)*(TF(nz,n)-TF(nz-1,n))+dt*swr_source
-        sr(nz)=a(nz)*(SF(nz,n)-SF(nz-1,n))!+dt*frw_source(nz)
+        sr(nz)=a(nz)*(SF(nz,n)-SF(nz-1,n))+dt*frw_source(nz)
 
      else
 
@@ -1467,30 +1542,27 @@ subroutine tracer_impl_vert_diff
      DO nz=1,nsigma-1
         if (abs( SF(nz,n))< 1.d-12) SF(nz,n) = abs(SF(nz,n))
         if (SF(nz,n)< 0.0_WP) then
-           write(*,*) 'Negative salinity, time resolution is insufficient, stop', SF(nz,n), nz, n,&
-            coord_nod2D(1,n)/pi*180.0_WP,  coord_nod2D(2,n)/pi*180.0_WP
+           write(*,*) 'Negative salinity, time resolution is insufficient, stop', SF(nz,n), nz, n
            stop
         endif
-!        if (TF(nz,n)< -2.0_WP) then !if close to sea ice, lets put it to 0
-!           TF(nz,n)=0.0_WP
-!           !write(*,*) 'Temperature < 0 ', TF(nz,n), nz, n
-!        endif
-        if (.not. use_ice) then
-        if (TF(nz,n)< -3.0_WP) then
+        if (TF(nz,n)< -0.0_WP) then !if close to sea ice, lets put it to 0
+           TF(nz,n)=0.0_WP
+           !write(*,*) 'Temperature < 0 ', TF(nz,n), nz, n
+        endif
+        if (TF(nz,n)< -1.81_WP) then
            write(*,*) 'Negative temperature, time resolution is insufficient, stop ', TF(nz,n), nz, n
            stop
         endif
-        endif
      enddo
   END DO
-
+  
   !write(*,*) '!!!!!!! ', maxval(SF(:,1:myDim_nod2D)), minval(SF(:,1:myDim_nod2D))
 
 #ifdef USE_MPI
   call exchange_nod(TF)
   call exchange_nod(SF)
 #endif
-
+  
 END subroutine tracer_impl_vert_diff
 
 !=======================================================================
@@ -1508,28 +1580,16 @@ real(kind=WP), intent(out)   :: diffcoeff
 
 real(kind=WP)                :: dz_inv, bv, shear, a, rho_up, rho_dn, t, s
 integer                     :: nn, elem, ne
-  interface
-     SUBROUTINE densityJM(t, s, pz, rho_out,con_ss)
-       USE o_MESH
-       USE o_ARRAYS
-       USE o_PARAM
-       IMPLICIT NONE
-       real(kind=WP), intent(IN)       :: t,s,pz
-       real(kind=WP), intent(OUT) :: rho_out
-       real(kind=WP)              :: rhopot, bulk, ss3
-       real(kind=WP), intent(IN), optional   :: con_ss
-     END SUBROUTINE densityJM
-  end interface
-  STOP "pp_diff: STOP, corr_TS is not defined in MPI, check tracer_impl_vert_diff"
+
   dz_inv=1./(Z(nz,node)-Z(nz-1,node))
   t=TF(nz-1, node)+T_aver
   s=SF(nz-1, node)+S_aver
-  rho_up = 0.0
+
   call densityJM(t, s, -zbar(nz,node), rho_up)
 
   t=TF(nz, node)+T_aver
   s=SF(nz, node)+S_aver
-  rho_dn = 0.0
+
   call densityJM(t, s, -zbar(nz,node), rho_dn)
 
 
@@ -1648,6 +1708,7 @@ SUBROUTINE calc_heat_flux_sw(num_sig,i,swr_source)
     USE o_PARAM
     USE o_MESH
     USE o_ARRAYS
+    USE fv_sbc
 
     IMPLICIT NONE
     INTEGER, INTENT(in):: num_sig,i
@@ -1690,15 +1751,13 @@ swr_source= qsr(i)*(swr1-swr2)/(Jc(num_sig,i)*c_p*rho)
 endif
 !add rest of qsr to last layer
 if (num_sig==nsigma-1) then
-!0.2 is a reflection from bottom
- swr_source= swr_source + 0.2*qsr(i)*(swr2)/(Jc(num_sig,i)*c_p*rho)
+swr_source= swr_source + qsr(i)*(swr2)/(Jc(num_sig,i)*c_p*rho)
 endif
 
 END SUBROUTINE calc_heat_flux_sw
 
 SUBROUTINE calc_evap_precip(i,frw)
-    !VF
-    !IK ,
+!VF
     ! INPUT:
     ! i: number of the node
     ! OUTPUT:
@@ -1707,46 +1766,25 @@ SUBROUTINE calc_evap_precip(i,frw)
     USE o_PARAM
     USE o_MESH
     USE o_ARRAYS
+    USE fv_sbc
 
     IMPLICIT NONE
     INTEGER, INTENT(in) :: i
     REAL(kind=WP),INTENT(out):: frw
     REAL(kind=WP)            :: T,S,rho
 
-    interface
-     SUBROUTINE densityJM(t, s, pz, rho_out,con_ss)
-       USE o_MESH
-       USE o_ARRAYS
-       USE o_PARAM
-       IMPLICIT NONE
-       real(kind=WP), intent(IN)       :: t,s,pz
-       real(kind=WP), intent(OUT) :: rho_out
-       real(kind=WP)              :: rhopot, bulk, ss3
-       real(kind=WP), intent(IN), optional   :: con_ss
-     END SUBROUTINE densityJM
-    end interface
-
-    T=TF(1,i)+T_aver
-    S=SF(1,i)+S_aver
-
-    call  densityJM(T,0.0_WP, -zbar(1,i), rho)
+T=TF(1,i)+T_aver
+S=SF(1,i)+S_aver
 
 
-    if ((rho+density_0)*Jc(1,i)/=0) then
-        frw=S*emp(i)/((rho+density_0)*Jc(1,i))
-!        if (use_ice) then
-!            frw = frw + real_salt_flux(i)/Jc(1,i)
-!        end if
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (S<=0.2_WP) then
-            if (frw<0) then
-                frw = 0.0_WP
-            end if
-        end if
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    else
-        frw = 0.0_WP
-    endif
+ call  densityJM(T,0.0_WP, -zbar(1,i), rho)
+
+
+ if ((rho+density_0)*Jc(1,i)/=0) then
+frw=S*emp(i)/((rho+density_0)*Jc(1,i))
+  else
+    frw = 0.0_WP
+ endif
 
 
 END SUBROUTINE calc_evap_precip
@@ -1755,6 +1793,7 @@ END SUBROUTINE calc_evap_precip
 SUBROUTINE sw_bot_corr(i)
 !VF
     USE o_PARAM
+    USE fv_sbc
 
     IMPLICIT NONE
     INTEGER, INTENT(in):: i
@@ -1767,7 +1806,7 @@ SUBROUTINE sw_bot_corr(i)
 if (swr_source_aux(1)>0.0_WP) then
 if ((swr_source_aux(2)/swr_source_aux(1))>swr_bot_min) then
                swr_bot_refl=swr_source_aux(2)*swr_bot_refl_part
-!IKm               qsr(i)=qsr(i)-swr_bot_refl
+               qsr(i)=qsr(i)-swr_bot_refl
 endif
 endif
 END SUBROUTINE sw_bot_corr
@@ -1801,6 +1840,7 @@ SUBROUTINE sw_cp(S,Ti,Pr,cp0)
     USE o_PARAM
     USE o_MESH
     USE o_ARRAYS
+    USE fv_sbc
 
     IMPLICIT NONE
     REAL(kind=WP),INTENT(in) :: S,Ti

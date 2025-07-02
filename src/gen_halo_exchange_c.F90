@@ -15,7 +15,9 @@
 ! ========================================================================
 
 module g_comm
+
 implicit none
+
 contains
 
 #ifdef DEBUG
@@ -689,6 +691,9 @@ if (npes> 1) then
 
          ! Check MPI point-to-point communication for consistency
 #ifdef DEBUG
+
+!SH print *,'elem3D exchange POS1 ubound', ubound(elem_array3D,1), myDim_elem2D+eDim_elem2D+eXDim_elem2D
+
          call check_mpi_comm(rn, sn, r_mpitype_elem3D(:,nl1,1), s_mpitype_elem3D(:,nl1,1), &
               com_elem2D%rPE, com_elem2D%sPE)
 #endif
@@ -709,6 +714,8 @@ if (npes> 1) then
 
          ! Check MPI point-to-point communication for consistency
 #ifdef DEBUG
+
+!SH print *,'elem2D exchange POS2 ubound', ubound(elem_array3D,1), myDim_elem2D+eDim_elem2D+eXDim_elem2D
          call check_mpi_comm(rn, sn, r_mpitype_elem2D(:,nl1), s_mpitype_elem2D(:,nl1), &
               com_elem2D%rPE, com_elem2D%sPE)
 #endif
@@ -739,6 +746,7 @@ if (npes> 1) then
       rn=com_elem2D_full%rPEnum
 
       if (nl1==nsigma .or. nl1==nsigma-1) then
+
          ! Check MPI point-to-point communication for consistency
 #ifdef DEBUG
          call check_mpi_comm(rn, sn, r_mpitype_elem3D_full(:,nl1,1), &
@@ -934,6 +942,9 @@ IMPLICIT NONE
 
      ! Check MPI point-to-point communication for consistency
 #ifdef DEBUG
+
+!SH print *,'elem2D exchange POS1 ubound', ubound(elem_array2D,1), myDim_elem2D+eDim_elem2D+eXDim_elem2D
+
      call check_mpi_comm(rn, sn, r_mpitype_elem2D(:,1), s_mpitype_elem2D(:,1), &
           com_elem2D%rPE, com_elem2D%sPE)
 #endif
@@ -957,6 +968,9 @@ IMPLICIT NONE
 
      ! Check MPI point-to-point communication for consistency
 #ifdef DEBUG
+
+!SH print *,'elem2D exchange POS2 ubound', ubound(elem_array2D,1), myDim_elem2D+eDim_elem2D+eXDim_elem2D
+
      call check_mpi_comm(rn, sn, r_mpitype_elem2D_full(:,1), s_mpitype_elem2D_full(:,1), &
           com_elem2D_full%rPE, com_elem2D_full%sPE)
 #endif
@@ -1390,6 +1404,72 @@ endif
 end subroutine gather_nod2D
 !==============================================
 !============================================================================
+subroutine gather_elem3D_i(arr3D, arr3D_global)
+
+! Make element information available to master PE 
+!
+! Use only with 3D arrays stored in (vertical, horizontal) way
+
+use g_PARSUP
+USE o_MESH
+
+
+IMPLICIT NONE
+
+INTEGER      :: nl1
+integer      :: n
+
+integer  ::  arr3D(:,:)
+integer  ::  arr3D_global(:,:)
+integer, allocatable :: recvbuf(:,:)
+integer        :: req(npes-1)
+integer        :: start, e3D, ende, err_alloc
+integer        :: max_loc_Dim, i, status(MPI_STATUS_SIZE)
+
+ if (npes> 1) then
+CALL MPI_BARRIER(MPI_COMM_FESOM_C,MPIerr)
+
+nl1=ubound(arr3D,1)
+
+! Consider MPI-datatypes to recv directly into arr3D_global
+! (Carefull with duplicate interface elements, coming from two
+!  PEs at once!)
+
+IF ( mype == 0 ) THEN
+   
+   if (npes>1) then
+! 
+      allocate(recvbuf(nl1,remPtr_elem2D(npes)))
+
+      do  n = 1, npes-1
+         e3D = (remPtr_elem2D(n+1) - remPtr_elem2D(n))*nl1
+         start = remPtr_elem2D(n)
+         call MPI_IRECV(recvbuf(1,start), e3D, MPI_INTEGER, n, 2, MPI_COMM_FESOM_C, req(n), MPIerr)
+      enddo
+      
+      arr3D_global(1:nl1,myList_elem2D(1:myDim_elem2D)) = arr3D(1:nl1,1:myDim_elem2D)
+   
+
+      call MPI_WAITALL(npes-1, req, MPI_STATUSES_IGNORE, MPIerr)
+
+      arr3D_global(1:nl1, remList_elem2D(1 : remPtr_elem2D(npes)-1)) &
+                        = recvbuf(1:nl1, 1 : remPtr_elem2D(npes)-1)
+
+      deallocate(recvbuf)
+
+   else
+      arr3D_global(:,:) = arr3D(:,:)
+   endif
+
+ELSE
+   
+   call MPI_SEND( arr3D, myDim_elem2D*nl1, MPI_INTEGER, 0, 2, MPI_COMM_FESOM_C, MPIerr )
+   
+ENDIF
+
+endif
+end subroutine gather_elem3D_i
+!==============================================
 subroutine gather_elem3D(arr3D, arr3D_global)
 
 ! Make element information available to master PE 
@@ -2004,6 +2084,7 @@ interface gather_elem
       module procedure gather_real4_elem3D
       module procedure gather_real4_elem2D
       module procedure gather_elem2D_i
+      module procedure gather_elem3D_i
 end interface gather_elem
 
 interface gather_edge

@@ -11,7 +11,7 @@ include 'mpif.h'
 
   integer                                :: MPI_COMM_FESOM_C
   integer, parameter   :: MAX_LAENDERECK=8
-  integer, parameter   :: MAX_NEIGHBOR_PARTITIONS=32
+  integer, parameter   :: MAX_NEIGHBOR_PARTITIONS=64
 
   type com_struct
      integer                                       :: rPEnum ! the number of PE I receive info from 

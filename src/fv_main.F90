@@ -11,40 +11,30 @@ PROGRAM MAIN
   USE o_ARRAYS
   USE o_PARAM
   USE o_UTILIT
-  USE i_ARRAYS
-  USE i_PARAM
-!  USE turbulence, only: init_turbulence    no gotm
-!  USE mtridiagonal, only: init_tridiagonal no gotm
-#ifdef USE_MPI
-  USE pnetcdf ! lib. PnetCDF (read/write netcdf in MPI)
-  USE fv_ncoutputmpi ! MPI version of netCDF output
-  USE fv_sbcmpi      ! MPI version of surface boundary cond.
-#else
+  USE turbulence, only: init_turbulence
+  USE mtridiagonal, only: init_tridiagonal
   USE fv_ncoutput
   USE fv_sbc
-#endif
-
   USE fv_obc
-  USE fv_rivers
+  USE fv_obc_2d
 
   USE g_parsup
   use g_comm_auto
 
   IMPLICIT NONE
 
-  integer      :: i, k, n, period_m2, out_fft, istep, ist,elnodes(4), nz, rk, rk2, turn_on_riv, n_dt2, flag_riv,vsp(11), nod
+  integer      :: i, k, n, period_m2, out_fft, istep, ist,elnodes(4), nz, rk, rk2, turn_on_riv, n_dt2, flag_riv,vsp(11)
   integer      :: fid_ssh_fft=111, fid_vel2D_fft=100, fid_vel3Du_fft=3, fid_vel3Dv_fft=4, Tfile=5, Sfile=6, tracer_sch, elem, nn, sk
-  real(kind=WP) :: eout, x, y, tt, ss, pp, pr
+  real(kind=WP) :: eout, x, y, dt_2D_old, dt_old, tt, ss, pp, pr, time_jd0_orig
   real(kind=WP), external :: theta
   double precision :: L_min
   integer      :: ierr ! return values, error flags
 
   real(kind=WP) :: mx_t, mn_t, mx_s, mn_s, mx_eta, mn_eta
-  real(kind=WP) :: mx_mice,mn_mice,mx_aice,mn_aice,mx_uice,mn_uice,mx_vice,mn_vice
   real(kind=WP) :: mx_bp2, mn_bp2, mx_bpu3, mx_bpv3, mx_un2, mn_un2, mx_un, mx_vn, mx_w, mn_w
   real(kind=WP) :: mx_cd, mn_cd, mx_av, mx_kv
 
-   real(kind=WP) :: mx_cdulf, mx_cdvlf
+  real(kind=WP) :: mx_con, mn_con, mx_h_var, mn_h_var
 
   real(kind=WP) :: start_time, end_time, t0, t_end, t1,t2,t3,t4
   integer :: c1,c1rate,c1max,c2,c2rate,c2max
@@ -52,17 +42,8 @@ PROGRAM MAIN
   integer :: IREP_NC, ierror, fID, ind
 
   logical :: enable_output_main_switch
-  real(kind=WP)   :: t_0, t_1, t_2, t_3, t_4, t_5, t_6, t_7, t_8
 
-
-
-  real(kind=WP) ::   tau_inv_filt_0 ! coefficient for reducing clima_relax after initialization (several days))
-  logical :: SHnc !netcdf output by SH
-
-  character(len = 256) :: fname,tmpstr ! file name
-
-  SHnc = .FALSE.
-  enable_output_main_switch = .TRUE.
+  enable_output_main_switch = .TRUE. 
 
 #ifdef USE_MPI
   call MPI_INIT(ierr)
@@ -74,7 +55,7 @@ PROGRAM MAIN
 #endif
 
 
-!  print *,'Init phase: mype,npes = ',mype,npes
+ !aa67 print *,'Init phase: mype,npes = ',mype,npes
 
 
   !++++++++++++++++++++++++++
@@ -84,9 +65,10 @@ PROGRAM MAIN
   if (mype==0) then
     open(51,file='max_min_ssh.dat')
     !open(52,file='max_min_vel.dat')
-    open(53,file='energy.dat')
-    open(54,file='cpu_time.dat')
-    open(55,file='MPI_Wtime.dat')
+    if (enable_output_main_switch) then
+       open(53,file='energy.dat')
+       open(54,file='cpu_time.dat')
+    end if
   end if
 
 
@@ -95,6 +77,13 @@ PROGRAM MAIN
   !++++++++++++++++++++++++++
 
   call READ_DATA_RUN
+
+  dt_2D_old=dt_2D
+  dt_old=dt
+  !FV The initial time(Julian days) is taken from run file
+  ! and used for the calculation of the total amount of simulated days
+  ! from the beginning of calculation
+  time_jd0_orig=time_jd0
 
   IREP_NC=IREP
 
@@ -133,11 +122,11 @@ PROGRAM MAIN
   eDim_edge2D  = 0
 #endif
 
-!  if (.not.cartesian) then
-!    print *,'PE, Longitude range: ',mype,minval(coord_nod2D(1,:))/rad,maxval(coord_nod2D(1,:))/rad
-!    print *,'PE, Latitude range : ',mype,minval(coord_nod2D(2,:))/rad,maxval(coord_nod2D(2,:))/rad
-!    print *,'PE, Depth range    : ',mype,minval(depth(:)),maxval(depth(:))
-!  end if
+ !aa67 if (.not.cartesian) then
+ !aa67   print *,'PE, Longitude range: ',mype,minval(coord_nod2D(1,:))/rad,maxval(coord_nod2D(1,:))/rad
+ !aa67   print *,'PE, Latitude range : ',mype,minval(coord_nod2D(2,:))/rad,maxval(coord_nod2D(2,:))/rad
+ !aa67   print *,'PE, Depth range    : ',mype,minval(depth(:)),maxval(depth(:))
+ !aa67 end if
 
 
   call find_elem_neighbors
@@ -156,8 +145,7 @@ PROGRAM MAIN
 
   call array_setup
 
-!IK   call find_up_downwind_triangles
-!IK ! edge_up_dn_tri is not calculated in fv_mesh_array, due to the error in the coord_elem(:,:,:) , zeors (0) in coordinates of elements beggire then my_elem2d
+  call find_up_downwind_triangles
 
   if (type_task>1) call jacobian
 
@@ -166,6 +154,14 @@ PROGRAM MAIN
   !=====================
 
   call initial_state
+
+  !=================================
+  ! VF, inizialization of river forcing
+  !=================================
+
+if ((riv).or.(riv_ob)) call initial_riv
+
+  !aa67 write(*,*) 'initialization done'
 
   if (type_task>2) then
 
@@ -196,58 +192,87 @@ PROGRAM MAIN
   ! Initialize turbulence related stuff
   !=====================
 
-!IK print *,mype,type_task,ver_mix
+! aa67 print *,mype,type_task,ver_mix
 
   if ((type_task>1).and.(ver_mix == 2)) then
 !SH SKIPPED FOR NOW, NOT YET USED     call init_turbulence(namlst,'gotmturb.nml',nsigma-1)
 !SH SKIPPED FOR NOW, NOT YET USED     call init_tridiagonal(nsigma-1)
      if (mype==0) print *,'init_turbulence completed!'
-     STOP 'GOTM turned off'
   end if
 
 
   !=====================
   ! Time stepping
   !=====================
+  !VF, files for fft analysis
+  if (T_out .and. TF_presence) then
+     if (T_out_el_va) then
+        if (mype==0) open(fid_ssh_fft,file=trim(OUTDIR)//'ssh_fft.out')
+        if (mype==0) open(fid_vel2D_fft,file=trim(OUTDIR)//'vel2D_fft.out')
+     endif
+     if (T_out_3Dvel) then
+        if (mype==0) open(fid_vel3Du_fft,file=trim(OUTDIR)//'vel3Du_fft.out')
+        if (mype==0) open(fid_vel3Dv_fft,file=trim(OUTDIR)//'vel3Dv_fft.out')
+     endif
+  endif
 
+  if (mype==0) open(fid_ssh_fft,file=trim(OUTDIR)//'ssh_fft.out')
+  if (mype==0) open(fid_vel2D_fft,file=trim(OUTDIR)//'vel2D_fft.out')
 
-!  write(*,*) ini_time
+!SH SKIPPED FOR NOW  if(restart) call read_restart
+  write(*,*) ini_time
 
   !SH open preliminary netcdf output file
   !SH TO BE REPLACED
-  allocate(coord_nod2D_glob(2,nod2D), index_nod2D_glob(nod2D))
-  allocate(elem2D_nodes_glob(4,elem2D))
-  if (SHnc) then
-    allocate(eta_n_2_glob(nod2D))
-    allocate(TF_glob(nsigma-1,nod2D))
-  endif
+  if (mype==0) then  
+     allocate(coord_nod2D_glob(2,nod2D), index_nod2D_glob(nod2D))
+     allocate(depth_glob(nod2D))
+     allocate(w_cv_glob(4,elem2D), elem2D_nodes_glob(4, elem2D))
+     allocate(eta_n_2_glob(nod2D))
+     allocate(U_n_2D_glob(2,elem2D))
+     allocate(TF_glob(nsigma-1,nod2D))
+  else
+     ! only dummy fields for mpes>0 (not master)
+     allocate(coord_nod2D_glob(2,2), index_nod2D_glob(2))
+     allocate(depth_glob(2))
+     allocate(elem2D_nodes_glob(4,2))
+     allocate(eta_n_2_glob(2))
+     allocate(TF_glob(2,2))
+  end if
+  
   !Generate ac file for sponge layer
   ALLOCATE(ac(myDim_nod2D+eDim_nod2D))
   ac(:)=1.0_WP
 
 #ifdef USE_MPI
-
+  
   call gather_nod(coord_nod2D, coord_nod2D_glob)
   call gather_nod(index_nod2D, index_nod2D_glob)
+  call gather_elem(w_cv, w_cv_glob)
+!  call gather_elem(elem2D_nodes, elem2D_nodes_glob)
+  call gather_nod(depth, depth_glob)
 
+  if (nobn>0) allocate(X1obn(nobn),X2obn(nobn),in_obn(nobn))
 
-  if (nobn>0) then
-    allocate(X1obn(nobn),X2obn(nobn),in_obn(nobn))
+  if ((SL_obn).and.(.not.(SL_obn_user_def))) then
+ 
+     if (mype==0) call ac_create_Xobn
 
-    if ((SL_obn).and.(.not.(SL_obn_user_def))) then
+     !call MPI_BARRIER(MPI_COMM_FESOM_C,ierror)
+     call MPI_BCast(X1obn,nobn,MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, ierror)
+     call MPI_BCast(X2obn,nobn,MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, ierror)
+     call MPI_BCast(in_obn,nobn,MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
+     
+     if (nobn>0) call ac_create(ac)
+     call exchange_nod(ac)
+     if (mype==0) print *,'AC values (open boundaries) are set.'
 
-        if (mype==0) call ac_create_Xobn
+  end if
 
-        !call MPI_BARRIER(MPI_COMM_FESOM_C,ierror)
-        call MPI_BCast(X1obn,nobn,MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, ierror)
-        call MPI_BCast(X2obn,nobn,MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, ierror)
-        call MPI_BCast(in_obn,nobn,MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
-        call ac_create(ac)
-        call exchange_nod(ac)
-        if (mype==0) print *,'AC values (open boundaries) are set.'
-    end if
-
-    if (mynobn>0) then
+  !SH Set the global indexes of the open boundary nodes
+  !SH Check this part, especially when open boundary nodes are
+  !   distributed in several partitions
+  if (mynobn>0) then
      ind=0
      do n=1,myDim_nod2D
         if (index_nod2D(n)==2) then
@@ -258,60 +283,57 @@ PROGRAM MAIN
                  exit
               end if
            end do
-           if (my_in_obn_idx(ind)==0) print *,'WARNING: open bnd index discrepancy'
+      !aa67     if (my_in_obn_idx(ind)==0) print *,'WARNING: open bnd index discrepancy'
         endif
 
      end do
-    end if
-  endif
-!if (mynobn>0) then
-!        write(tmpstr,*) mype
-!        write(fname,*) 'ampt_',trim(ADJUSTL(trim(tmpstr))),'.out'
-!       open(50,file=fname)
-!       write(50,*) "mype=",mype,"mynobn=",mynobn
-!       write(50,*) "my_in_obn="
-!       write(50,*) my_in_obn
-!       write(50,*) "my_in_obn_idx="
-!       write(50,*) my_in_obn_idx
-!       write(50,*) "myList_nod2D(my_in_obn_idx)"
-!       do n=1,mynobn
-!       write(50,*) myList_nod2D(my_in_obn(n))
-!       end do
-!endif
+     if (ind/=mynobn) STOP 'OBN Discrepancy!!'
+
+  end if
+
+!Specific test
+!!$if (npes==2) then
+!!$ fid=22+mype
+!!$ if (mype==0) open(fid,file='ac_values_p2_1')
+!!$ if (mype==1) open(fid,file='ac_values_p2_2')
+!!$
+!!$ do n=1,myDim_nod2D
+!!$    write (fID,*) n,myList_nod2D(n),index_nod2D(n),ac(n)
+!!$ end do
+!!$ close(fID)
+!!$end if
 
 
 #else
 
   coord_nod2D_glob=coord_nod2D
   elem2D_nodes_glob=elem2D_nodes
-  index_nod2D_glob=index_nod2D
+  index_nod2D_glob=index_nod2D  
 
   !aaa  if (SL_obn_user_def) then
   !aaa  open (23,file=trim(meshpath)//trim(TITLE)//'_ac.out', status='old')
   !aaa  read(23,*) ac
   !aaa  CLOSE(23)
   !aaa  endif
+  
+  if (nobn>0) allocate(X1obn(nobn),X2obn(nobn))
+  if ((SL_obn).and.(.not.(SL_obn_user_def))) then
+     call ac_create_Xobn
+     call ac_create(ac)
+     if (mype==0) print *,'AC values (open boundaries) are set.'
+  end if
 
-  if (nobn>0) then
-    allocate(X1obn(nobn),X2obn(nobn))
-    if ((SL_obn).and.(.not.(SL_obn_user_def))) then
-        call ac_create_Xobn
-        call ac_create(ac)
-        if (mype==0) print *,'AC values (open boundaries) are set.'
-    end if
-  endif
-open(22,file='ac_values_ser')
-do n=1,nod2D
-   write (22,*) n,ac(n)
-end do
-close(22)
+!!$open(22,file='ac_values_ser')
+!!$do n=1,nod2D
+!!$   write (22,*) n,ac(n)
+!!$end do
+!!$close(22)
 
 #endif
-  if (SHnc) then
-    if (mype==0) call nc_init
-  endif
 
-  deallocate(coord_nod2D_glob,elem2D_nodes_glob)
+  if (enable_output_main_switch .AND. mype==0) call nc_init
+
+  deallocate(coord_nod2D_glob)
 
   !++++++++++++++++++++++++++++++++++
   ! compute mask for wetting/drying
@@ -324,49 +346,101 @@ close(22)
   endif
 
   time_jd = time_jd0
+  turn_on_riv=0
 
 
-  !=================================
-  ! inizialization of ice
-  !=================================
-  if (use_ice) call ice_setup
+  !VF Here is a control when we should turn on rivers
+  if (riv_control_ob) then
+     riv_OB=.FALSE.
+     flag_riv=0
+     if (time_jd>=riv_vt_jd(1)) then
+        do i=2, size(riv_vt_jd)
+           if (time_jd<riv_vt_jd(i)) then
+              !VF We should turn on rivers immediately and calculate how long the current river record is valid
+              rk2=i-1
+              riv_vt2(rk2)=(riv_vt_jd(i)-time_jd)/jdh
+              flag_riv=1
+              riv_OB=.TRUE.
+              write(*,*)'Rivers are activated, start from record :', rk2, 'the record valid (hours): ', riv_vt2(rk2)
+           endif
+           if (flag_riv==1) exit
+        enddo
+        if (flag_riv==0) then
+           riv_control_OB=.FALSE.
+           write(*,*) 'Rivers will be not activated, initial julian date large than date of last river record'
+        endif
+     else
+        !VF Here we calculate how many steps should be passed before enabling rivers
+        !VF (procedure does not take into account possible time step changing!))
+        turn_on_riv=nint(((riv_vt_jd(1)-time_jd)/jdh)*3600.0_WP/dt)+1
+        write(*,*)'Rivers will be activated after ', turn_on_riv, 'steps'
+        rk2=1
+     endif
+  endif
 
-  !Read restart (after allocation in initialization of ice ...)
-  ! sbc,obc,rivers should be after restart
-  if(restart) call read_restart_separate
+
+  if (riv_control) then
+     riv=.FALSE.
+     flag_riv=0
+     if (time_jd>=riv_vt_jd(1)) then
+
+        do i=2, size(riv_vt_jd)
+           if (time_jd<riv_vt_jd(i)) then
+              rk=i-1
+              riv_vt(rk)=(riv_vt_jd(i)-time_jd)/jdh
+              flag_riv=1
+              riv=.TRUE.
+              write(*,*)'Rivers are activated, start from record :', rk, 'the record valid (hours): ', riv_vt(rk)
+           endif
+           if (flag_riv==1) exit
+        enddo
+        if (flag_riv==0) then
+           riv_control=.FALSE.
+           write(*,*) 'Rivers will be not activated, initial julian date large than date of last river record'
+        endif
+     else
+        turn_on_riv=nint(((riv_vt_jd(1)-time_jd)/jdh)*3600.0_WP/dt)+1
+        write(*,*)'Rivers will be activated after ', turn_on_riv, 'steps'
+        rk=1
+     endif
+  endif
+
+
   !=================================
   ! inizialization of ocean forcing
   !=================================
-#ifdef USE_MPI
-  if (key_atm) call sbcmpi_ini
-#else
   if (key_atm) call sbc_ini
-#endif
+!stop 'YIPPIE'
   !=================================
-  ! initialization of open boundary, fv_obc.F90, work for serial and MPI
+  ! inizialization of open boundary
   !=================================
-  if (key_obc)    call obc_ini
-  !=================================
-  ! initialization of rivers, fv_rivers.F90, work for serial and MPI
-  !=================================
-  if (key_rivers)    call rivers_ini
+!SH SKIPPING FOR NOW  if (key_obc)    call obc_ini
+!SH SKIPPING FOR NOW  if (key_obc_2d) call obc_2d_ini
   !=================================
   ! Initialization of NC output
   !=================================
-#ifdef USE_MPI
-  if (key_nc_output) call ncoutputmpi_ini
-#else
-  if (key_nc_output) call output_ini
-#endif
+!SH SKIPPING FOR NOW  if (key_nc_output) call output_ini
 
+  !VF, call Jacobian one more time to initialize Jc_old to non-zero value
   if (type_task>1) call jacobian
 
   if (comp_sediment) then
      h_var_old = h_var
      h_var_old2 = h_var2
-  end if
 
-  tau_inv_filt_0 = tau_inv_filt !initial state
+  end if
+!!$open(75,file='w_cv.dat')
+!!$do n=1,elem2D
+!!$write(75,*) w_cv(1:4,n)
+!!$enddo
+!!$close(75)
+!!$open(75,file='elem_area.dat')
+!!$do n=1,elem2D
+!!$write(75,*) elem_area(n)
+!!$enddo
+!!$close(75)
+
+
 !===============================
 !
 !        MAIN LOOP
@@ -376,25 +450,42 @@ close(22)
   n_dt2=0
   sk=1;
 
+  !VF The loop starts from 1 now, nsteps changes (decreasing) if you use hot_start
 
-!#ifdef USE_MPI
-!  t0=MPI_Wtime()
-!#else
-!  call cpu_time(start_time)
-!  call system_clock(c1,c1rate,c1max)
-!  print *,'CLOCK:',c1,c1rate,c1max
-!#endif
+!nsteps=870 ! 200  !2000   !400  !8000
+
+#ifdef USE_MPI 
+  t0=MPI_Wtime()
+#else
+  call cpu_time(start_time)
+  call system_clock(c1,c1rate,c1max)
+  print *,'CLOCK:',c1,c1rate,c1max
+#endif
+
 
   do n_dt = 1, nsteps
 
-!if (mype==0) then
-!print *,'============'
-!print *,'STEP:',n_dt
-!endif
+!aa67 if (mype==0) then
+!aa67 print *,'============'
+!aa67 print *,'STEP:',n_dt
+!aa67 endif
 
-!     if (mype==0) write(*,*) "time step: ", n_dt
+!!$     if (mype==0) write(*,*) "time step: ", n_dt
      n_dt2=n_dt2+1
 
+
+    if (n_dt <= 350) amA = 0.1_WP
+    if (n_dt > 350 .and. n_dt <= 550) amA = 0.2_WP
+    if (n_dt > 550 .and. n_dt <= 750) amA = 0.3_WP
+    if (n_dt > 750 .and. n_dt <= 1000) amA = 0.4_WP
+    if (n_dt > 1000 .and. n_dt <= 1250) amA = 0.5_WP
+    if (n_dt > 1250 .and. n_dt <= 1300) amA = 0.6_WP
+    if (n_dt > 1300 .and. n_dt <= 1350) amA = 0.7_WP
+    if (n_dt > 1350 .and. n_dt <= 1400) amA = 0.8_WP
+    if (n_dt > 1400 .and. n_dt <= 1800) amA = 0.9_WP
+    if (n_dt > 1800) amA = 1.0_WP
+
+     
      !$ if (iverbosity >= 2) t1=omp_get_wtime()
 
      time_jd = time_jd+dt/86400.0_WP
@@ -406,97 +497,113 @@ close(22)
 
      ! surface boundary conditions
      !$ if (iverbosity >= 3) t2=omp_get_wtime()
-!#ifdef USE_MPI
-! t_0=MPI_Wtime()
-!#endif
-     if (key_rivers) call rivers_do
-!#ifdef USE_MPI
-! t_1=MPI_Wtime()
-!#endif
-#ifdef USE_MPI
-     if (key_atm) call sbcmpi_do
-#else
+
+if ( mod(n_dt,IREP)==0) then
      if (key_atm) call sbc_do
-#endif
-!#ifdef USE_MPI
-! t_2=MPI_Wtime()
-!#endif
-     if (use_ice) call ice_timestep
-!#ifdef USE_MPI
-! t_3=MPI_Wtime()
-!#endif
+end if
+
      !$ if (iverbosity >= 3) t3=omp_get_wtime()
 
-     ! call change in Tclim and Sclim before time step, works for MPI and serial
-     if (key_obc) call obc_do
-!#ifdef USE_MPI
-! t_4=MPI_Wtime()
-!#endif
-!#ifdef USE_MPI
-!  t1=MPI_Wtime()
-!#endif
+     ! call change in Tclim and Sclim before time step
+!SH SKIPPING FOR NOW     if (key_obc) call obc_do
+
+#ifdef USE_MPI 
+  t1=MPI_Wtime()
+#endif
 
      call oce_timestep
 
-!#ifdef USE_MPI
-!  t2=MPI_Wtime()
-!#endif
-!#ifdef USE_MPI
-! t_5=MPI_Wtime()
-!#endif
-!#ifdef USE_MPI
-!  #if (mype==0) print *,'ZWISCHENZEIT: oce_timestep: ',t2-t1
-!  #if (mype==0) write(54,*) t2-t1
 
-!#endif
+#ifdef USE_MPI 
+  t2=MPI_Wtime()
+#endif
+
+#ifdef DEBUG_TIMING
+#ifdef USE_MPI 
+  if (mype==0) print *,'ZWISCHENZEIT: oce_timestep: ',t2-t1
+#endif
+#endif
 
 
 
      !*****************************************
      ! part of sediment model (every tidal cycle change the bottom due to sediment)
      ! AA
-!     If (comp_sediment) then
-!
-!        if ( ((n/period_m2)*period_m2) == n) then
-!           do nn=1,myDim_nod2D
-!              depth(nn) = depth(nn) + (h_var(nn) - h_var_old(nn))
-!              h_var_old(nn) = h_var(nn)
-!              !VF: alternative calculation
-!              h_var_old2(nn) = h_var2(nn)
-!           enddo
-!        endif
-!
-!     endif
+     If (comp_sediment) then
+
+        call sediment
+
+        !if ( ((n/period_m2)*period_m2) == n) then
+        if ( mod(n_dt,IREP*6)==0 ) then
+           do nn=1,myDim_nod2D
+              depth(nn) = depth(nn) + (h_var(nn) - h_var_old(nn))
+              h_var_old(nn) = h_var(nn)
+              !VF: alternative calculation
+!aa67              h_var_old2(nn) = h_var2(nn)
+           enddo
+        endif
+
+     endif
      !AA
      !*************************************
 
+     !        if (key_obc_2d) call obc_2d_do
+
      !make NetCDF output
-#ifdef USE_MPI
-     if (key_nc_output) call ncoutputmpi_do
-#else
-     if (key_nc_output) call output_do
-#endif
-!#ifdef USE_MPI
-! t_6=MPI_Wtime()
-!#endif
+     !aaa        if (key_nc_output) call output_do
+
      !$ if (iverbosity >= 3) t4=omp_get_wtime()
 
-!#ifdef USE_MPI
-!
-!     call MPI_REDUCE(maxval(eta_n),mx_eta, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-!          0, MPI_COMM_FESOM_C, MPIerr)
-!     call MPI_REDUCE(minval(eta_n),mn_eta, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-!          0, MPI_COMM_FESOM_C, MPIerr)
-!
-!     if (mype==0) write(51,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,mx_eta,mn_eta
-!!!     if (mype==0) write(*,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,mx_eta,mn_eta
-!
-!#else
-!
-!     write(51,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,maxval(eta_n),minval(eta_n)
-!!     write(*,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,maxval(eta_n),minval(eta_n)
-!
-!#endif
+#ifdef USE_MPI
+
+!!$print *,'OBACHT: ',mype,time,maxval(eta_n)
+     call MPI_REDUCE(maxval(eta_n),mx_eta, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+          0, MPI_COMM_FESOM_C, MPIerr)
+     call MPI_REDUCE(minval(eta_n),mn_eta, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+          0, MPI_COMM_FESOM_C, MPIerr)
+     
+     if (mype==0) write(51,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,mx_eta,mn_eta
+     !if (mype==0) write(*,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,mx_eta,mn_eta
+
+#ifdef DEBUG_TIMING
+     if (mype==0) write(*,'(3e13.5)') time,mx_eta,mn_eta
+#endif
+
+#else
+
+     write(51,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,maxval(eta_n),minval(eta_n)
+     write(*,'(3e13.5)') (time- time_jd0*86400.0_WP)/3600.0_WP,maxval(eta_n),minval(eta_n)
+
+#endif
+
+!SH COMMENTED FOR THE MOMENT This output results in a waitall proces on all processes except the first
+!!$     if (mype==0 .and. (T_out).and.(TF_presence)) then
+!!$        write(*,*) 'fft writing starts'
+!!$        if ((time - time_jd0*86400.0_WP>= T_period*3600.0_WP*T_num).and.(T_counter<T_aval)) then
+!!$           dt=T_step
+!!$           dt_2D=dt/Mt
+!!$           if (T_out_el_va) then
+!!$              write(fid_ssh_fft,'(e14.6)') eta_n
+!!$              write(fid_vel2D_fft,'(2f10.5)') U_n_2D
+!!$           endif
+!!$           if ((T_out_3Dvel).and.(type_task>1)) then
+!!$              write(fid_vel3Du_fft,'(2f10.5)') U_n
+!!$              write(fid_vel3Dv_fft,'(2f10.5)') V_n
+!!$           endif
+!!$           T_counter=T_counter+1
+!!$        endif
+!!$     endif
+!!$SH Comment above should remain
+
+     dt=dt_old
+     dt_2D=dt_2D_old
+
+     !==================================================
+     !VF, update river input characteristics, if necessary
+     !==================================================
+
+     if (riv_control)    call update_info_riv(rk,n_dt2, turn_on_riv) !SH skipping for now 
+     if (riv_control_ob) call update_info_riv_ob(rk2,n_dt2, turn_on_riv)!SH skipping for now   
 
      !==================================================
      !VF, update sediments concentration at the ob, if necessary
@@ -510,6 +617,7 @@ close(22)
 
 
      if ( enable_output_main_switch .AND. mod(n_dt,IREP)==0 ) then
+     
 
 #ifdef USE_MPI
         call MPI_AllREDUCE(maxval(eta_n),mx_eta, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
@@ -561,47 +669,22 @@ close(22)
                 MPI_COMM_FESOM_C, MPIerr)
            call MPI_AllREDUCE(minval(SF),mn_s, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
                 MPI_COMM_FESOM_C, MPIerr)
+           call MPI_AllREDUCE(maxval(con),mx_con, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+                              MPI_COMM_FESOM_C, MPIerr)
+           call MPI_AllREDUCE(minval(con),mn_con, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+                              MPI_COMM_FESOM_C, MPIerr)
+           call MPI_AllREDUCE(maxval(h_var),mx_h_var, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+                              MPI_COMM_FESOM_C, MPIerr)
+           call MPI_AllREDUCE(minval(h_var),mn_h_var, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+                              MPI_COMM_FESOM_C, MPIerr)
         end if
-        if (use_ice) then
-           call MPI_AllREDUCE(maxval(m_ice),mx_mice, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(m_ice),mn_mice, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(maxval(a_ice),mx_aice, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(a_ice),mn_aice, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(U_n_ice(1,:)),mx_uice, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(U_n_ice(1,:)),mn_uice, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(U_n_ice(2,:)),mx_vice, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-           call MPI_AllREDUCE(minval(U_n_ice(2,:)),mn_vice, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-                MPI_COMM_FESOM_C, MPIerr)
-          call MPI_AllREDUCE(maxval(Cdu_lf),mx_cdulf, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-          call MPI_AllREDUCE(maxval(Cdv_lf),mx_cdvlf, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-                MPI_COMM_FESOM_C, MPIerr)
-
-
-         endif
-#else
-        mx_mice = maxval(m_ice)
-        mn_mice = minval(m_ice)
-        mx_aice = maxval(a_ice)
-        mn_aice = minval(a_ice)
-        mx_uice = maxval(U_n_ice(1,:))
-        mn_uice = minval(U_n_ice(1,:))
-        mx_vice = maxval(U_n_ice(2,:))
-        mn_vice = minval(U_n_ice(2,:))
 #endif
 
-        if (SHnc) then
         if ( mod(n_dt,IREP_NC)==0 ) then
-           print *,'OUTPUT',mype
+     !aa67      print *,'OUTPUT',mype
 #ifdef USE_MPI
            call gather_nod(eta_n_2, eta_n_2_glob)
+           call gather_elem(U_n_2D, U_n_2D_glob)
            if (allocated(TF)) call gather_nod(TF, TF_glob)
 #else
            eta_n_2_glob=eta_n_2
@@ -609,25 +692,26 @@ close(22)
 #endif
            if (mype==0) call nc_out(n_dt)
         end if
-        endif
 
         call energy(eout)
 
         if (mype==0) then
            print *,'Energy ENERGY ENERGY : ',eout
-           write(*,*) "icedyn_tmask = ",icedyn_tmask
+
+           !write(52,'(3e13.5)') time/3600.0_WP,U_n_2D
            write(53,'(4e16.7)') time/86400.0_WP-time_jd0,eout
            if (iverbosity >= 1) then
-              write(*,*) 'time= ',time/86400.0_WP-time_jd0,'time_all= ',time/86400.0_WP-time_jd0
+              write(*,*) 'time= ',time/86400.0_WP-time_jd0,'time_all= ',time/86400.0_WP-time_jd0_orig
               write(*,*)  ' energy= ',eout
               write(*,*) 'Mass Conserv. imbalance: max, index_max, mean', ib, im_index, ib_mean
 
-
+              
               if (type_task>1) then
 #ifdef USE_MPI
                  write(*,*) 'max_min_ssh:' , mx_eta, mn_eta
                  write(*,*) 'max_min_vel 2D:', mx_un2, mn_un2
-
+                 !   write(*,*) 'mask', maxval(mask_wd), minval(mask_wd)
+                  
                  write(*,*) 'max_vel 3D:', mx_un, mx_vn
                  write(*,*) 'vert_vel= ', mx_w, mn_w
                  write(*,*) 'maxmin_2Dpr=',mx_bp2, mn_bp2
@@ -638,32 +722,63 @@ close(22)
                     write(*,*) 'T_maxmin= ', mx_t, mn_t
                     write(*,*) 'S_maxmin= ', mx_s, mn_s
                     write(*,*) 'dt', dt
+                    !write(*,*) 'concentration of sedimentation 3d = ' , maxval(CF),minval(CF)
                  endif
+
 #else
                  write(*,*) 'max_min_ssh:' , maxval(eta_n), minval(eta_n)
                  write(*,*) 'max_min_vel 2D:', maxval(U_n_2D),minval(U_n_2D)
-
+                 !   write(*,*) 'mask', maxval(mask_wd), minval(mask_wd)
+                  
+       !          write(*,*) 'max_vel 3D:', maxval(U_n),maxval(V_n)
+       !          write(*,*) 'vert_vel= ', maxval(Wvel(:,1)),minval(Wvel(:,1))
+       !          write(*,*) 'maxmin_2Dpr=',maxval(Bar_pr_2D), minval(Bar_pr_2D)
+       !          write(*,*) 'max_3Dpr=',maxval(Bar_pru_3D), maxval(Bar_prv_3D)
+       !          write(*,*) 'C_d_el=',maxval(C_d_el), minval(C_d_el)
+       !          write(*,*) 'max_vert_vis_dif= ', maxval(Av), maxval(Kv)
                  if (type_task>2) then
                     write(*,*) 'T_maxmin= ', maxval(TF),minval(TF)
                     write(*,*) 'S_maxmin= ', maxval(SF),minval(SF)
                     write(*,*) 'dt', dt
+                    !write(*,*) 'concentration of sedimentation 3d = ' , maxval(CF),minval(CF)
                  endif
-#endif
-                 if (use_ice) then
-                    write(*,*) 'mice_maxmin= ', mx_mice, mn_mice
-                    write(*,*) 'aice_maxmin= ', mx_aice, mn_aice
-                    write(*,*) 'uice_maxmin= ', mx_uice, mn_uice
-                    write(*,*) 'vice_maxmin= ', mx_vice, mn_vice
-                    write(*,*) 'CD_LANDFAST_ICE=', mx_cdulf, mx_cdvlf
-                 end if
+#endif                 
               endif
-              write(*,*) 'dt_2D', dt_2D
+              write(*,*) 'dt_2D', dt_2D, mype
+              If (comp_sediment) then
+#ifdef USE_MPI
+                 write(*,*) 'concentration of sedimentation max, min: con = ' , mx_con,mn_con
+                 !aaa write(*,*) 'concentration of sedimentation max, min: con = ' , maxval(con)*plop_s*10,minval(con)*plop_s*10
+                 !aaa write(*,*) 'concentration of sedimentation 3d = ' , maxval(CF),minval(CF)
+                 !aaa write(*,*) 'concentration riv = ' , maxval(CF(:,riv_node(:))),minval(CF(:,riv_node(:)))
+                 !aaa write(*,*) 'w_s = ' ,maxval(w_s),minval(w_s)
+                 !aaa write(*,*) 'Visc = ' ,maxval(Visc),minval(Visc)
+                 
+                 write(*,*) 'bottom variation max, min: h_var = ' , mx_h_var,mn_h_var
+                 !aaa write(*,*) 'bottom variation max, min: h_var2 = ' , maxval(h_var2),minval(h_var2)
+                 !aaa write(*,*) 'Er_Dep', maxval(Er_Dep),minval(Er_Dep), sum(Er_Dep)/nod2D
+                 !aaa write(*,*) 'riv er_dep', maxval(Er_Dep(riv_node(:))),minval(Er_Dep(riv_node(:)))
+                 !aaa write(*,*) 'C_d = ', maxval(C_d_el), minval(C_d_el)
+
+#else
+                 write(*,*) 'concentration of sedimentation max, min: con = ' , maxval(con),minval(con)
+                 !aaa write(*,*) 'concentration of sedimentation max, min: con = ' , maxval(con)*plop_s*10,minval(con)*plop_s*10
+                 !aaa write(*,*) 'concentration of sedimentation 3d = ' , maxval(CF),minval(CF)
+                 !aaa write(*,*) 'concentration riv = ' , maxval(CF(:,riv_node(:))),minval(CF(:,riv_node(:)))
+                 !aaa write(*,*) 'w_s = ' ,maxval(w_s),minval(w_s)
+                 !aaa write(*,*) 'Visc = ' ,maxval(Visc),minval(Visc)
+                 write(*,*) 'bottom variation max, min: h_var = ' , maxval(h_var),minval(h_var)
+                 !aaa write(*,*) 'bottom variation max, min: h_var2 = ' , maxval(h_var2),minval(h_var2)
+                 !aaa write(*,*) 'Er_Dep', maxval(Er_Dep),minval(Er_Dep), sum(Er_Dep)/nod2D
+                 !aaa write(*,*) 'riv er_dep', maxval(Er_Dep(riv_node(:))),minval(Er_Dep(riv_node(:)))
+                 !aaa write(*,*) 'C_d = ', maxval(C_d_el), minval(C_d_el)
+                 !write(*,*) 'riv node = ', Unode(:,riv_node(:)), maxval(Vnode(:,riv_node(:)))
+                 !write(*,*) 'riv node = ', Er_Dep(riv_node(:)), maxval(w_s(:,riv_node(:))),minval(w_s(:,riv_node(:)))
+#endif
+              endif
            endif
         endif
      end if
-!#ifdef USE_MPI
-! t_7=MPI_Wtime()
-!#endif
      !aaa output for LE only!!!!
 !SH skipped for now     if ( mod(n_dt, IREC)==0 ) then
 !SH skipped for now        if (type_task>1) call cross_sec_LE
@@ -694,39 +809,7 @@ close(22)
      !        call cross_sec
      !        write(*,*) 'output cross section TF'
      !  endif
-     if ( mod(n_dt, IRESTART)==0 ) call write_restart_separate(n_dt)
-!#ifdef USE_MPI
-! t_8=MPI_Wtime()
-!#endif
-!#ifdef USE_MPI
-!    t_8=t_8-t_7
-!    t_7=t_7-t_6
-!    t_6=t_6-t_5
-!    t_5=t_5-t_4
-!    t_4=t_4-t_3
-!    t_3=t_3-t_2
-!    t_2=t_2-t_1
-!    t_1=t_1-t_0
-!    call MPI_AllREDUCE(t_1,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_1=t1
-!    call MPI_AllREDUCE(t_2,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_2=t1
-!    call MPI_AllREDUCE(t_3,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_3=t1
-!    call MPI_AllREDUCE(t_4,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_4=t1
-!    call MPI_AllREDUCE(t_5,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_5=t1
-!    call MPI_AllREDUCE(t_6,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_6=t1
-!    call MPI_AllREDUCE(t_7,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_7=t1
-!    call MPI_AllREDUCE(t_8,t1, 1, MPI_DOUBLE_PRECISION, MPI_MAX,MPI_COMM_FESOM_C, MPIerr)
-!    t_8=t1
-!    if (mype==0) then
-!        write(55,'(8e16.7)') t_1,t_2,t_3,t_4,t_5,t_6,t_7,t_8
-!    endif
-!#endif
+!SH skipped for now     if ( mod(n_dt, IRESTART)==0 ) call write_restart(n_dt)
 
      !$ if (iverbosity >= 2) then
      !$    t5=omp_get_wtime()
@@ -749,7 +832,7 @@ close(22)
 !===============================
 
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
   t_end=MPI_Wtime()
   if (mype==0) print *,'Time needed for main loop (parallel) p0: ',t_end-t0
   if (mype==1) print *,'Time needed for main loop (parallel) p1: ',t_end-t0
@@ -764,10 +847,9 @@ close(22)
   close(fid_ssh_fft)
   close(fid_vel2D_fft)
 
-  if (mype==0) close(51)
+  close(51)
   !close(52)
   if (mype==0) close(53,status='KEEP')  ! close file ---> energy.dat
-  if (mype==0) close(54,status='KEEP')  ! close file ---> cpu
 
 #ifdef USE_MPI
   call par_ex
@@ -776,7 +858,7 @@ close(22)
   stop 'Serial Version: Leaving for now...'
 #endif
 
-
+  
 END PROGRAM MAIN
 
 
@@ -838,6 +920,7 @@ subroutine read_mesh_ser
 
   mynobn=nobn ! Defined for compatibility with MPI version
 
+  !VF, create in_obn array with OBN indexes
   allocate(in_obn(nobn), my_in_obn(nobn), my_in_obn_idx(nobn))
   ind=0
   do n=1,nod2D
@@ -853,7 +936,7 @@ subroutine read_mesh_ser
   read(21,*)  elem2D
   ALLOCATE(elem2D_nodes(4,elem2D))
   ALLOCATE(elem_data(4*elem2D))
-  elem_data(:)=-1
+  elem_data(:)=-1         !aa67 ????????????????????
 
   ! meshes with quads have 4 columns, but TsunAWI grids may be
   ! purely triangular, with 3 columns each. Test, how many
@@ -921,9 +1004,9 @@ subroutine read_mesh_ser
   end if
 
 !SHTEST TOPOGRAPHY
-!do n=1,nod2D
-!  if (depth(n)<10.0) depth(n)=10.0
-!end do
+do n=1,nod2D
+  if (depth(n)<10.0) depth(n)=10.0
+end do
 
   !SH check this!! (what if part of domain is dry)
   !do n=1,nod2D
@@ -950,10 +1033,9 @@ SUBROUTINE array_setup
   USE o_ARRAYS
   USE o_PARAM
 
-  USE i_PARAM
-  USE i_ARRAYS
-
   use g_parsup
+
+  use fv_sbc
 
   IMPLICIT NONE
 
@@ -962,45 +1044,6 @@ SUBROUTINE array_setup
 
   node_size=myDim_nod2D+eDim_nod2D
   elem_size=myDim_elem2D+eDim_elem2D+eXDim_elem2D
-
-  if (use_wef)  then
-    allocate(wef(node_size), STAT=sbc_alloc )
-    if( sbc_alloc /= 0 )   STOP 'array_setup: failed to allocate arrays'
-    wef=0.0_WP
-    if (type_task>2) then
-        write(*,*) "!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!"
-        write(*,*) "!!!! type_task > 2 and use_wef = True"
-    end if
-  end if
-
-  if (key_atm .or. use_ice) then
-    allocate(Ch_atm_oce_arr(node_size),Ce_atm_oce_arr(node_size),&
-            & Cd_atm_oce_arr(node_size),Cd_atm_ice_arr(node_size), net_heat_flux(node_size),&
-            & evaporation(node_size), fresh_water_flux(node_size), real_salt_flux(node_size), &
-            & STAT=sbc_alloc )
-    if( sbc_alloc /= 0 )   STOP 'array_setup: failed to allocate arrays'
-    Ch_atm_oce_arr = 0.0_WP
-    Ce_atm_oce_arr = 0.0_WP
-    Cd_atm_oce_arr = 0.0_WP
-    Cd_atm_ice_arr = 0.0_WP
-    evaporation = 0.0_WP
-    fresh_water_flux = 0.0_WP
-    real_salt_flux = 0.0_WP
-    net_heat_flux = 0.0_WP
-    allocate(mask_ice_adv_n(node_size),mask_ice_adv_e(elem_size), STAT=sbc_alloc )
-    if( sbc_alloc /= 0 )   STOP 'array_setup: failed to allocate arrays mask_ice_adv_n'
-    mask_ice_adv_n = 1.0_WP
-    mask_ice_adv_e = 1.0_WP
-    allocate(mask_ice_adv_big_n(node_size),mask_ice_adv_big_e(elem_size), STAT=sbc_alloc )
-    if( sbc_alloc /= 0 )   STOP 'array_setup: failed to allocate arrays mask_ice_adv_big_n'
-    mask_ice_adv_big_n = 1.0_WP
-    mask_ice_adv_big_e = 1.0_WP
-
-  endif
-  allocate(C_d_2d_n(node_size), C_d_2d_e(elem_size), STAT=sbc_alloc )
-  if( sbc_alloc /= 0 )   STOP 'array_setup: failed to allocate arrays mask_ice_adv_big_n'
-  C_d_2d_n = 0.003_WP
-  C_d_2d_e = 0.003_WP
 
   allocate(mslp(node_size), STAT=sbc_alloc )
   mslp = P_ref
@@ -1044,13 +1087,15 @@ SUBROUTINE array_setup
   taux_node=0.0_WP
   tauy_node=0.0_WP
 
-  allocate(windx(node_size), windy(node_size), wind(node_size))
+  allocate(windx(node_size), windy(node_size))
   windx=0.0_WP
   windy=0.0_WP
-  allocate(qns(node_size), emp(node_size), qsr(node_size))
-  qns = 0.0_WP
-  emp = 0.0_WP
-  qsr = 0.0_WP
+
+!These are allocated in sbc_ini remove if all works
+!ALLOCATE( qns(node_size), emp(node_size), qsr(node_size))
+!qns = 0.0_WP
+!emp = 0.0_WP
+!qsr = 0.0_WP
 
   allocate(relax_coef(node_size))
   relax_coef=0.0_WP
@@ -1061,14 +1106,14 @@ SUBROUTINE array_setup
   hpre_2D=0.0_WP
 
   ! 3D part
-
+  !VF, allocate depends on the type_task
   if (type_task>1) then
      allocate(TF(nsigma-1,node_size), SF(nsigma-1,node_size))
      allocate(T_old(nsigma-1,node_size), S_old(nsigma-1,node_size))
      allocate(Tclim(nsigma-1,node_size), Sclim(nsigma-1,node_size))
      TF(:,:)=0.0_WP; SF(:,:)=0.0_WP
   endif
-  if (comp_sediment) allocate(CF(nsigma-1,node_size),c_old(nsigma-1,node_size),w_s(nsigma-1,node_size),Cclim(nsigma-1,node_size))
+!aaa  if (comp_sediment) allocate(CF(nsigma-1,node_size),c_old(nsigma-1,node_size),w_s(nsigma-1,node_size),Cclim(nsigma-1,node_size))
   allocate(rho_c(nsigma-1,node_size))
   rho_c=0.0_WP
 
@@ -1088,11 +1133,9 @@ SUBROUTINE array_setup
      allocate(Bar_pru_3D_clim(nsigma-1,elem_size), Bar_prv_3D_clim(nsigma-1,elem_size))
      Bar_pru_3D_clim=0.0_WP
      Bar_prv_3D_clim=0.0_WP
-     allocate(snu(nsigma,node_size), bt(nsigma,node_size),Ri(nsigma,node_size),tke_dissip(nsigma,node_size))
-     Ri = 0.0_WP
+     allocate(snu(nsigma,node_size), bt(nsigma,node_size))
      snu = snul
      bt = 1.0d-8
-     tke_dissip = 0.0_WP
      allocate(UV_rhs(2,nsigma-1,elem_size))
      UV_rhs = 0.0_WP
 
@@ -1179,9 +1222,7 @@ SUBROUTINE array_setup
   !++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! SEDIMENT
   !++++++++++++++++++++++++++++++++++++++++++++++++++++
-  ! remove comment,
-!  if (comp_sediment) then
-  allocate(qbu(elem_size), qbv(elem_size))
+  Allocate(qbu(elem_size), qbv(elem_size))
   qbu = 0.0_WP
   qbv = 0.0_WP
   Allocate(hama_v(node_size), E_sed(node_size), h_var(node_size), h_var_old(node_size))
@@ -1191,14 +1232,14 @@ SUBROUTINE array_setup
   hama_v = 0.0_WP
   E_sed = 0.0_WP
   Er_Dep = 0.0_WP
-  h_var = 1.0_WP
-  h_var_old = 1.0_WP
-  h_var2 = 1.0_WP
-  h_var_old2 = 1.0_WP
+  h_var = 0.0_WP
+  h_var_old = 0.0_WP
+  h_var2 = 0.0_WP
+  h_var_old2 = 0.0_WP
   allocate(con(node_size), con_bc(node_size))
   con = 0.0_WP
   con_bc = 0.0_WP
-!  endif
+
   if (mype==0) write(*,*) 'Arrays are set up'
 
 END SUBROUTINE array_setup
@@ -1262,7 +1303,9 @@ subroutine jacobian
   enddo
 !$OMP END DO
 
-!IK  if (mype==0) print *,'SUBROUTINE jacobian COMPLETED'
+#ifdef DEBUG
+  if (mype==0) print *,'SUBROUTINE jacobian COMPLETED'
+#endif
 
 End subroutine jacobian
 !===========================================================================
@@ -1313,7 +1356,7 @@ subroutine adv_tracer_mask
   USE o_PARAM
 
   use g_parsup
-
+  
   IMPLICIT NONE
 
   real(kind=WP)   :: dmean,x,y
@@ -1374,6 +1417,7 @@ SUBROUTINE timestep_AB_2D(step)
   USE o_MESH
   USE o_ARRAYS
   USE o_PARAM
+  USE fv_sbc
 
   use g_parsup
   use g_comm_auto
@@ -1392,10 +1436,9 @@ SUBROUTINE timestep_AB_2D(step)
 
 !aa13.02.20 print *,'step, U_n_2D :',mype,step,minval(U_n_2D(2,:)),maxval(U_n_2D(2,:))
 
-#ifdef USE_MPI
- t_0=MPI_Wtime()
-#endif
-
+!!$#ifdef USE_MPI 
+!!$ t_0=MPI_Wtime()
+!!$#endif
 
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(n,el)
 !$OMP DO
@@ -1410,40 +1453,85 @@ SUBROUTINE timestep_AB_2D(step)
   enddo
 !$OMP END DO
 !$OMP END PARALLEL
+!!$print *,minval(UAB(1,:)),maxval(UAB(1,:))
+!!$print *,minval(UAB(2,:)),maxval(UAB(2,:))
 
-!#ifdef USE_MPI
-! t_1=MPI_Wtime()
-!#endif
+#ifdef DEBUG
+  print *,'step, UAB :',mype,step,minval(UAB(1,:)),maxval(UAB(1,:))
+  print *,'step, VAB :',mype,step,minval(UAB(2,:)),maxval(UAB(2,:))
+  print *,'step, EtaAB :',mype,step,minval(etaAB),maxval(etaAB)
+#endif
+
+!!$#ifdef USE_MPI 
+!!$ t_1=MPI_Wtime()
+!!$#endif
 
   !==================
   !  compute ssh_rhs
   !==================
 
-  call compute_ssh_rhs_elem
+!!$print *,'SSH_RHS111',step,minval(ssh_rhs(:)),maxval(ssh_rhs(:))
 
-!#ifdef USE_MPI
-! t_2=MPI_Wtime()
-!#endif
+ call compute_ssh_rhs_elem
+
+!!$#ifdef USE_MPI 
+!!$ t_2=MPI_Wtime()
+!!$#endif
 
 
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i)
 !$OMP DO
-
-  do i=1,myDim_nod2D
+!!$print *,'SSH_RHS222',step,minval(ssh_rhs(:)),maxval(ssh_rhs(:))
+  do i=1,myDim_nod2D+eDim_nod2D
      !Calculate eta_n+1
      if (index_nod2D(i) < 2) ssh_rhs(i) = eta_n(i) + dt_2D*ssh_rhs(i)/area(i)
   enddo
 
-#ifdef USE_MPI
-  call exchange_nod(ssh_rhs)
-#endif
-!if (mype==12) then
-!   write(*,*) ssh_rhs(my_in_obn(1)),ssh_rhs(my_in_obn(10)),ssh_rhs(my_in_obn(1))-ssh_rhs(my_in_obn(10))
-!endif
+!SHSPEEDTEST
+!!$#ifdef USE_MPI
+!!$  call exchange_nod(ssh_rhs)
+!!$#endif
+  
+!!$print *,'SSH_RHS333',step,minval(ssh_rhs(:)),maxval(ssh_rhs(:))
+
+!aa13.02.20 print *,'ssh_rhs:',step,minval(ssh_rhs(:)),maxval(ssh_rhs(:))
 
 
 !$OMP END DO
 !$OMP END PARALLEL
+
+  !NROMP Not nice for parallelization, and not necessary in all 3D and 2D time steps.
+  !NROMP OpenMP skipped for the first round, but check added to compute this only
+  !NROMP in time steps with diagnostic output
+
+!aa13.02.20  IF (mod(n_dt,IREP)==0 .and. step==Mt ) THEN
+!aa13.02.20     ib_mean=0._WP
+!aa13.02.20     k=0
+!aa13.02.20     do i=1,myDim_nod2D+eDim_nod2D
+!aa13.02.20        if (index_nod2D(i) < 2) then
+!aa13.02.20           k = k+1
+!aa13.02.20           !VF, calculate imbalance of the mass conservation law using implicit scheme
+!aa13.02.20           ibv = -eta_n(i) +eta_n_1(i) +dt_2D*ssh_rhs(i)/area(i)
+!aa13.02.20           ib_mean = ib_mean+abs(ibv)
+!aa13.02.20           if (abs(ibv) > ib) then
+!aa13.02.20              ib = abs(ibv)
+!aa13.02.20              im_index = i
+!aa13.02.20           endif
+!aa13.02.20        endif
+!aa13.02.20     ENDDO
+!aa13.02.20     ib_mean = ib_mean / real(k,WP)
+     
+!aa13.02.20  END IF
+
+  !write(*,*) 'ssh_rhs1',maxval(ssh_rhs)
+!aa13.02.20 print *,'ERSTERTEST',step,type_task,minval(ssh_rhs),maxval(ssh_rhs)
+
+  !write(*,*) 'ssh_rhs,eta_n',maxval(ssh_rhs),maxval(eta_n)
+  !write(*,*) 'SSH=',maxval(ssh_rhs), minval(ssh_rhs)
+  ! ssh_rhs contains eta_n+1. It will be copied on eta_n, but
+  ! after computations of the velocity are made
+
+  ! calculation of the fluctuation velocity
 
   !##########################################################
   !##
@@ -1477,8 +1565,9 @@ SUBROUTINE timestep_AB_2D(step)
      call exchange_elem(dmean_n)
 #endif
 
+!SHDB     
 !aa13.02.20 print *,'ZWEITERTEST',mype,minval(dmean_n),maxval(dmean_n)
-!aa13.02.20 print *,'ERSTERaaa',step,minval(ssh_rhs),maxval(ssh_rhs)
+!aa13.02.20 print *,'ERSTERaaa',step,minval(ssh_rhs),maxval(ssh_rhs)   
 
 
 !$OMP DO
@@ -1486,7 +1575,7 @@ SUBROUTINE timestep_AB_2D(step)
         eta_p(i) = eta_n(i)
      END DO
 !$OMP END DO
-!aa13.02.20 print *,'ERSTERbbbb',mype,minval(ssh_rhs),maxval(ssh_rhs)
+!!$print *,'ERSTERbbbb',mype,minval(ssh_rhs),maxval(ssh_rhs)     
 
      call compute_puls_vel
 
@@ -1513,30 +1602,32 @@ SUBROUTINE timestep_AB_2D(step)
      END DO
 !$OMP END PARALLEL DO
 
-#ifdef USE_MPI
-     call exchange_elem(U_rhs_2D_3D)
-#endif
+!SHSPEEDTEST
+!!$#ifdef USE_MPI
+!!$     call exchange_elem(U_rhs_2D_3D)
+!!$#endif
 
   END IF ! part for step==1 only
 
-!#ifdef USE_MPI
-! t_3=MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_3=MPI_Wtime()
+!!$#endif
 
   !##
   !##########################################################
 
 
-!aa13.02.20 print *,'HUHU U',step,minval(U_rhs_2D(1,:)),maxval(U_rhs_2D(1,:))
-!aa13.02.20 print *,'HUHU V',step,minval(U_rhs_2D(2,:)),maxval(U_rhs_2D(2,:))
+!!$print *,'HUHU U',step,minval(U_rhs_2D(1,:)),maxval(U_rhs_2D(1,:))
+!!$print *,'HUHU V',step,minval(U_rhs_2D(2,:)),maxval(U_rhs_2D(2,:))
 
 
   call update_2D_vel(step)
+!!$print *,'HUHU2',step,minval(U_rhs_2D(2,:)),maxval(U_rhs_2D(2,:))
 !aa13.02.20 print *,'HUHU2',step,minval(U_rhs_2D(2,:)),maxval(U_rhs_2D(2,:))
 
-!#ifdef USE_MPI
-! t_4=MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_4=MPI_Wtime()
+!!$#endif
 
   ! =============
   ! Update elevation and velocity
@@ -1544,18 +1635,19 @@ SUBROUTINE timestep_AB_2D(step)
 
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i,n,elem,dmean)
 !$OMP DO
-  do n=1,myDim_nod2D
+  do n=1,myDim_nod2D+eDim_nod2D
      eta_n_2(n) = eta_n_1(n)
      eta_n_1(n) = eta_n(n)
      eta_n(n)   = ssh_rhs(n)
   end do
   !$OMP END DO NOWAIT
 
-#ifdef USE_MPI
-  call exchange_nod(eta_n_1)
-  call exchange_nod(eta_n_2)
-  call exchange_nod(eta_n)
-#endif
+!SHSPEEDTEST
+!!$#ifdef USE_MPI
+!!$  call exchange_nod(eta_n_1)
+!!$  call exchange_nod(eta_n_2)  
+!!$  call exchange_nod(eta_n)
+!!$#endif
 
 !aa13.02.20 print *,'ETA_N:',step,minval(eta_n),maxval(eta_n)
 !aa13.02.20 print *,'WCV:',step,minval(w_cv),maxval(w_cv)
@@ -1566,7 +1658,7 @@ SUBROUTINE timestep_AB_2D(step)
 
 
 !$OMP DO
-  do elem=1,myDim_elem2D
+  do elem=1,myDim_elem2D+eDim_elem2D+eXDim_elem2D
      U_n_2(1,elem)      = U_n_1(1,elem)
      U_n_2(2,elem)      = U_n_1(2,elem)
      U_n_1(1,elem)      = U_n_2D(1,elem)
@@ -1578,15 +1670,16 @@ SUBROUTINE timestep_AB_2D(step)
   enddo
 !$OMP END DO NOWAIT
 
-#ifdef USE_MPI
-  call exchange_elem(U_n_1)
-  call exchange_elem(U_n_2)
-  call exchange_elem(U_n_2D)
-#endif
+!SHSPEEDTEST
+!!$#ifdef USE_MPI
+!!$  call exchange_elem(U_n_1)
+!!$  call exchange_elem(U_n_2)
+!!$  call exchange_elem(U_n_2D)
+!!$#endif
 
-!#ifdef USE_MPI
-! t_5=MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_5=MPI_Wtime()
+!!$#endif
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  preparation for compute Filtering 2D velocity
 !
@@ -1609,27 +1702,28 @@ SUBROUTINE timestep_AB_2D(step)
 
 #ifdef USE_MPI
   call exchange_elem(U_filt_2D)
-  call exchange_elem(V_filt_2D)
+  call exchange_elem(V_filt_2D)  
 #endif
 
-!#ifdef USE_MPI
-! t_6=MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_6=MPI_Wtime()
+!!$#endif
 
 ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! VF calling of sediment procedure is shifted here,
 ! so do not spoil parallelization
 ! AA compute sediment model
-!SH SKIPPING FOR NOW    If (comp_sediment) call sediment
+!  if (comp_sediment) call sediment  !SH: this call moved to the main program (aaa)
 ! AA
 
-#ifdef USE_MPI
- if(mype==0) then
-  !write(91,*) t_1-t_0,t_2-t_1,t_3-t_2,t_4-t_3,t_5-t_4,t_6-t_5
-  !write(91,*) t_4-t_3,t_2-t_1,t_3-t_0
- endif
-#endif
-
+!!$#ifdef USE_MPI 
+!!$ if(mype==0) then
+!!$  open(91,file='timing_fesom_c.out')
+!!$  write(91,*) t_1-t_0,t_2-t_1,t_3-t_2,t_4-t_3,t_5-t_4,t_6-t_5
+!!$  write(91,*) t_4-t_3,t_2-t_1,t_6-t_0
+!!$  close(91)
+!!$ endif
+!!$#endif
 
 END SUBROUTINE timestep_AB_2D
 !===========================================================================
@@ -1658,11 +1752,15 @@ SUBROUTINE oce_barotropic_timestep
   enddo
 !$OMP END PARALLEL DO
 
-!if (mype==0) print *,'Mt =',Mt
+#ifdef DEBUG
+  if (mype==0) print *,'Mt =',Mt
+#endif
+
   do n=1,Mt
      time_2D=time + dt_2D*n
      call timestep_AB_2D(n)
-!aa13.02.20 write (*,*) 'After AB: ',n,minval(U_filt_2D),maxval(U_filt_2D)
+
+!!$write (*,*) 'After AB: ',n,minval(U_filt_2D),maxval(U_filt_2D)
   enddo
 
   ! Filterin velocity
@@ -1683,19 +1781,19 @@ SUBROUTINE oce_barotropic_timestep
 #endif
 
 #ifdef DEBUG
-
+  
 #ifdef USE_MPI
-!     call MPI_AllREDUCE(minval(U_filt_2D),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(minval(U_filt_2D),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+          MPI_COMM_FESOM_C, MPIerr)
 
-!     call MPI_AllREDUCE(maxval(U_filt_2D),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(maxval(U_filt_2D),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+          MPI_COMM_FESOM_C, MPIerr)
 
 !aa13.02.20     if (mype==0) print *,'MIN_VAL Ufilt',mnv
 !aa13.02.20     if (mype==0) print *,'MAX_VAL Ufilt',mxv
 #else
-!     print *,'MIN_VAL Ufilt',minval(U_filt_2D)
-!     print *,'MAX_VAL Ufilt',maxval(U_filt_2D)
+     print *,'MIN_VAL Ufilt',minval(U_filt_2D)
+     print *,'MAX_VAL Ufilt',maxval(U_filt_2D)
 #endif
 
 #endif
@@ -1713,12 +1811,11 @@ SUBROUTINE solve_tracers
   use g_parsup
 
   IMPLICIT NONE
-
+  
   real(kind=WP) :: T_min, T_max, S_min, S_max
   real(kind=WP) :: T_min_loc, T_max_loc, S_min_loc, S_max_loc
-  integer       :: n, nz, node
+  integer       :: n
   real(kind=WP) :: t_0, t_1, t_2, t_3, t_4
-  real(kind=WP) :: river_coeff, river_delta
 
   !a if(tracer_adv==1) then
   !a call solve_tracer_miura(TF, 't')
@@ -1730,7 +1827,7 @@ SUBROUTINE solve_tracers
   !a call solve_tracer_second_order_rec(SF, 's')
   !a end if
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  t_0=MPI_Wtime()
 #endif
 
@@ -1749,7 +1846,7 @@ SUBROUTINE solve_tracers
   enddo
 !$OMP END DO NOWAIT
 !$OMP DO
-
+  
   do n=1,myDim_nod2D
      S_min_loc = min(S_min_loc,minval(SF(:,n)))
      S_max_loc = max(S_max_loc,maxval(SF(:,n)))
@@ -1772,17 +1869,17 @@ SUBROUTINE solve_tracers
   S_max=S_max_loc
   S_min=S_min_loc
 #endif
-
+    
   T_aver=0.5_WP*(T_min + T_max)
   S_aver=0.5_WP*(S_min + S_max)
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  t_1=MPI_Wtime()
 #endif
 
   call adv_tracer_mask
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  t_2=MPI_Wtime()
 #endif
 
@@ -1794,40 +1891,23 @@ SUBROUTINE solve_tracers
      call solve_tracer_upwind(TF, T_old, SF, S_old)
 
   elseif (tracer_adv==4) then
-
+ 
      call solve_tracer_miura(TF, T_old, 't')
 !SH SKIPPED FOR NOW     call solve_tracer_miura(SF, S_old, 's')
   end if
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  t_3=MPI_Wtime()
 #endif
-  ! add salinity (remove) due to rivers
-  ! runoff_rivers m3/s (interpolated in time runoff, see rivers_do, fv_rivers.f90)
-  ! my_Nnods_rivers number of nodes with rivers
-  ! my_nod_rivers array of nodes indexes
-  !    runoff * delta Sigma for current layer * timestep / area / cell height
-  if (key_rivers) then
-     ! to optimize: precalculate river_coeff and runoff_rivers(i)*(sigma(nz) - sigma(nz+1)))
-     do n=1, my_Nnods_rivers
-        do nz=1,nsigma-1
-           !0.2 - salinity in the river
-           node = my_nod_rivers(n)
-           river_coeff = runoff_rivers(n)*(sigma(nz) - sigma(nz+1)) &
-                         * dt / (area(node)*Jc(nz,node))
-           river_delta = (0.2 - S_old(nz,node))
-           SF(nz,node) = SF(nz,node) + river_delta * river_coeff
-        enddo
-     enddo
-  endif
-
+  
+!SH SKIPPED FOR NOW  call  tracer_riv(TF, T_old, SF, S_old)
   call tracer_impl_vert_diff
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  t_4=MPI_Wtime()
 #endif
 
-#ifdef USE_MPI
+#ifdef USE_MPI 
  if(mype==0) then
   write(92,*) t_1-t_0,t_2-t_1,t_3-t_2,t_4-t_3
  endif
@@ -1895,30 +1975,30 @@ SUBROUTINE oce_timestep
 
 !aa13.02.20  print *,mype,'oce_timestep started!'
 
-
+!!$print *,'U_n RANGE:',minval(U_n_2D(1,:)),maxval(U_n_2D(1,:))
   if (T_potential) call potential           ! AA compute tidal geopotential here
 
   select case (type_task)
 
   case(1)
 
-!!$     !$ if (iverbosity >= 3) t1=omp_get_wtime()
+     !$ if (iverbosity >= 3) t1=omp_get_wtime()
      call oce_barotropic_timestep
 
-!!$     !$ if (iverbosity >= 3) then
-!!$     !$    t2=omp_get_wtime()
-!!$     !$    write(*,'("oce_barotropic_timestep took ",f10.4,"s")') t2-t1
-!!$     !$ endif
+     !$ if (iverbosity >= 3) then
+     !$    t2=omp_get_wtime()
+     !$    write(*,'("oce_barotropic_timestep took ",f10.4,"s")') t2-t1
+     !$ endif
 
   case(2)
 
      !$ if (iverbosity >= 3) t1=omp_get_wtime()
 !$OMP PARALLEL
-!SHDB print *,'ARGH ',minval(U_n),maxval(U_n)
-!SHDB print *,'ARGH ',minval(V_n),maxval(V_n)
 
      call compute_el2nodes_3D(U_n,V_n,Unode,Vnode)
+
 !$OMP END PARALLEL
+
      !+++++++++++++++++++++++++
      ! vertical mixing scheme
      !+++++++++++++++++++++++++
@@ -1927,11 +2007,11 @@ SUBROUTINE oce_timestep
 !SH SKIPPED     if (ver_mix == 1) call oce_mixing_PP
 !SH SKIPPED     if (ver_mix == 2) call GOTM
      if (ver_mix == 3) then
-!        if (len(trim(title))==2 .AND. title=='LE') then
-!           call d3_end_LE
-!        else
+        if (len(trim(title))==2 .AND. title=='LE') then
+           call d3_end_LE
+        else
            call d3_end
-!        end if
+        end if
      end if
 
      !$ if (iverbosity >= 3) t3=omp_get_wtime()
@@ -1964,50 +2044,49 @@ SUBROUTINE oce_timestep
      !$    write(*,'("vert_vel_sigma took          ",f10.4," s")') t8-t7
      !$ endif
 
-     if (comp_sediment) then
+!aaa     if (comp_sediment) then
         !VF If comp_sediment and no other tracers, the density still changes due to varying concentration
         !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(n, nz)
-        DO n=1,nod2D
+!aaa        DO n=1,myDim_nod2D+eDim_nod2D
            ! VF, compute density in the vertical column and add it to rho_c - current rho, needed in fv_tracer
            ! VF, add effect of the susp. sediments
-           DO nz=1,nsigma-1
-!              call densityJM(T_const, S_const, -Z(nz,n), rho_c(nz,n),CF(nz,n))
-           END DO
-        END DO
+!aaa           DO nz=1,nsigma-1
+!aaa              call densityJM(T_const, S_const, -Z(nz,n), rho_c(nz,n),CF(nz,n))
+!aaa           END DO
+!aaa        END DO
         !$OMP END PARALLEL DO
 
-        call solve_tracers_sed
+        
 
-     endif
+!aaa        call solve_tracers_sed
+
+!aaa     endif
 
   case(3)
-
-!#ifdef USE_MPI
-! t_0 = MPI_Wtime()
-!#endif
+     
      if (Mask_Bar_pr) call bpr_mask
 
      !$ if (iverbosity >= 3) t1=omp_get_wtime()
 
-!#ifdef USE_MPI
-! t_1 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_0 = MPI_Wtime()
+!!$#endif
 
-     call pressure
+ call pressure
      ! if ((time/3600.0_WP/24.0_WP)>4) call pressure
 
      !$ if (iverbosity >= 3) t2=omp_get_wtime()
 
-!#ifdef USE_MPI
-! t_2 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_1 = MPI_Wtime()
+!!$#endif
 
 !$OMP PARALLEL
      call compute_el2nodes_3D(U_n,V_n,Unode,Vnode)
 
-!#ifdef USE_MPI
-! t_3 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_2 = MPI_Wtime()
+!!$#endif
 
 !$OMP END PARALLEL
 
@@ -2019,53 +2098,56 @@ SUBROUTINE oce_timestep
 !SH SKIPPED FOR NOW     if (ver_mix == 1) call oce_mixing_PP
 !SH SKIPPED FOR NOW     if (ver_mix == 2) call GOTM
      if (ver_mix == 3) then
-!        if (len(trim(title))==2 .AND. title=='LE') then
-!           call d3_end_LE
-!        else
+        if (len(trim(title))==2 .AND. title=='LE') then
+           call d3_end_LE
+        else
            call d3_end
-!        end if
+        end if
      end if
 
-!#ifdef USE_MPI
-! t_4 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_3 = MPI_Wtime()
+!!$#endif
 
      !$ if (iverbosity >= 3) t4=omp_get_wtime()
      call compute_vel_rhs
 
-!#ifdef USE_MPI
-! t_5 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_4 = MPI_Wtime()
+!!$#endif
 
      !$ if (iverbosity >= 3) t5=omp_get_wtime()
      call oce_barotropic_timestep
 
-!#ifdef USE_MPI
-! t_6 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_5 = MPI_Wtime()
+!!$#endif
 
      !$ if (iverbosity >= 3) t6=omp_get_wtime()
 
 !$OMP PARALLEL
      call jacobian
 
-!#ifdef USE_MPI
-! t_7 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_6 = MPI_Wtime()
+!!$#endif
 
      !$ if (iverbosity >= 3) t7=omp_get_wtime()
      call update_3D_vel
 
-!#ifdef USE_MPI
-! t_8 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_7 = MPI_Wtime()
+!!$#endif
 
      !$ if (iverbosity >= 3) t8=omp_get_wtime()
      call vert_vel_sigma
-!#ifdef USE_MPI
-! t_9 = MPI_Wtime()
-!#endif
+!!$#ifdef USE_MPI 
+!!$ t_8 = MPI_Wtime()
+!!$#endif
 
+!aa#ifdef USE_MPI 
+!aa t0 = MPI_Wtime()
+!aa#endif
 
 !$OMP END PARALLEL
 
@@ -2074,12 +2156,9 @@ SUBROUTINE oce_timestep
 
      !   print *,'================================ CALL TRACERS ===================='
      call solve_tracers
-!#ifdef USE_MPI
-! t_10 = MPI_Wtime()
-!#endif
 
 
-!SH SKIPPED FOR NOW     if (comp_sediment) call solve_tracers_sed
+!aaa     if (comp_sediment) call solve_tracers_sed
 
      !$ if (iverbosity >= 3) then
      !$   t10=omp_get_wtime()
@@ -2097,11 +2176,11 @@ SUBROUTINE oce_timestep
 
   end select
 
-!#ifdef USE_MPI
-! if(mype==0) then
-!  !write(93,*) t_1-t_0,t_2-t_1,t_3-t_2,t_4-t_3,t_5-t_4,t_6-t_5,t_7-t_6,t_8-t_7
-! endif
-!#endif
+!!$#ifdef USE_MPI 
+!!$ if(mype==0) then
+!!$  !write(93,*) t_1-t_0,t_2-t_1,t_3-t_2,t_4-t_3,t_5-t_4,t_6-t_5,t_7-t_6,t_8-t_7
+!!$ endif
+!!$#endif
 
 END SUBROUTINE oce_timestep
 !==========================================================================

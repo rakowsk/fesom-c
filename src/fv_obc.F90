@@ -3,8 +3,7 @@ MODULE fv_obc
    !! Open boundary conditions:
    !!===========================================================================
    !! History: 0.1 ! 02/2016 I. Kuznetsov
-   !!          1.01! 08/2020 I. Kuznetsov
-   !!                              MPI version, based on netcdf libs
+   !!
    !!
    !! public:
    !!   obc_ini  -- inizialization of open boundary
@@ -14,16 +13,14 @@ MODULE fv_obc
    USE o_MESH
    USE o_PARAM
 
-   USE g_parsup
 
    IMPLICIT NONE
 
    include 'netcdf.inc'
 
    public  obc_ini  ! routine called before 1st time step (open files, read namelist,...)
-   public  obc_do   ! routine called each time step to provide a obc fileds
+   public  obc_do   ! routine called each time step to provide a sbc fileds (wind,...)
    public  obc_end  ! routine called after last time step
-
 
    private
 
@@ -36,6 +33,7 @@ MODULE fv_obc
    character(len=34), save   :: nm_tobc_var   = 'temp' ! name of variable in file with temperature
    character(len=34), save   :: nm_sobc_var   = 'salt' ! name of variable in file with salinity
 
+   real(wp), save :: nm_obc_tau_relax = 86400.0 ! relaxation coeficient for OB [sec]
    integer, save  :: nm_obc   ! switch of module if -1
    ! ========== netCDF time param
    integer, save :: nm_nc_iyear = 1948    ! initial year of time axis in netCDF (1948 like CoastDat,1800 NCEP)
@@ -53,7 +51,7 @@ MODULE fv_obc
    real(wp), allocatable, save, dimension(:,:,:)   :: obcdata ! OB data for current time step
    integer,  allocatable, save, dimension(:)       :: index_nod2D_ob ! indexes of nods at OB
 
-   real(wp), allocatable, save, dimension(:)       :: intdata ! interpolated OB data for current time step and node (call apply_obc)
+   real(wp), allocatable, save, dimension(:)       :: intdata ! interpolated OB data for current time step and node (call apply_atm_fluxes)
 
 
 !============== NETCDF ==========================================
@@ -72,10 +70,13 @@ MODULE fv_obc
   type(flfi_type),save, dimension(i_totc) :: obc_flfi  !array for information about flux files
 
   ! arrays of time, lon and lat in INfiles
+   real(wp), allocatable, save, dimension(:)  :: nc_lon  ! coordinates of nodes in infile
+   real(wp), allocatable, save, dimension(:)  :: nc_lat  ! coordinates of nodes in infile
    real(wp), allocatable, save, dimension(:)  :: nc_node ! index of nodes in infile corespond to node in mesh
    real(wp), allocatable, save, dimension(:)  :: nc_time ! time array
    real(wp), allocatable, save, dimension(:)  :: nc_depth! depth (z) in netcdf file [m] , assume we have z-coordinate system
   ! lenght of arrays in INfiles
+   integer,save              :: nc_Nnode
    integer,save              :: nc_Ndepth
    integer,save              :: nc_Ntime
    ! time index for NC time array
@@ -112,102 +113,94 @@ CONTAINS
       integer              :: obc_alloc                   !: allocation status
 
 
-      if (mype==0) then
 
-          !open file
-          iost = nf_open(flf%file_name,NF_NOWRITE,ncid)
-          call check_nferr(iost,flf%file_name)
+      !open file
+      iost = nf_open(flf%file_name,NF_NOWRITE,ncid)
+      call check_nferr(iost,flf%file_name)
 
-          ! get dimensions
-          iost = nf_inq_dimid(ncid, "node", id_noded)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_dimid(ncid, "depth", id_depthd)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_dimid(ncid, "time", id_timed)
-          call check_nferr(iost,flf%file_name)
+      ! get dimensions
+      iost = nf_inq_dimid(ncid, "node", id_noded)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_dimid(ncid, "depth", id_depthd)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_dimid(ncid, "time", id_timed)
+      call check_nferr(iost,flf%file_name)
 
-          ! get variable id
-          iost = nf_inq_varid(ncid, "node", id_node)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_varid(ncid, "depth", id_depth)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_varid(ncid, "time", id_time)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_varid(ncid, "lon", id_lon)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_varid(ncid, "lat", id_lat)
-          call check_nferr(iost,flf%file_name)
-          !  get dimensions size
-          iost = nf_inq_dimlen(ncid, id_depthd, nc_Ndepth)
-          call check_nferr(iost,flf%file_name)
-          iost = nf_inq_dimlen(ncid, id_noded, i)
-          call check_nferr(iost,flf%file_name)
-          if( i /= nobn ) STOP 'nc_readTimeGrid: size of OB nodes in file .neq. to mesh'
-          iost = nf_inq_dimlen(ncid, id_timed, nc_Ntime)
-          call check_nferr(iost,flf%file_name)
-      endif
-#ifdef USE_MPI
-      call MPI_BCast(nc_Ntime, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_Ndepth, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, MPIerr)
-#endif
+      ! get variable id
+      iost = nf_inq_varid(ncid, "node", id_node)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_varid(ncid, "depth", id_depth)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_varid(ncid, "time", id_time)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_varid(ncid, "lon", id_lon)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_varid(ncid, "lat", id_lat)
+      call check_nferr(iost,flf%file_name)
+      !  get dimensions size
+      iost = nf_inq_dimlen(ncid, id_depthd, nc_Ndepth)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_inq_dimlen(ncid, id_noded, i)
+      call check_nferr(iost,flf%file_name)
+      if( i /= nc_Nnode ) STOP 'nc_readTimeGrid: size of OB nodes in file .neq. to mesh'
+      iost = nf_inq_dimlen(ncid, id_timed, nc_Ntime)
+      call check_nferr(iost,flf%file_name)
 
-      ALLOCATE( nc_time(nc_Ntime), nc_node(nobn), &
+      ALLOCATE( nc_lon(nc_Nnode), nc_lat(nc_Nnode), &
+                nc_time(nc_Ntime), nc_node(nc_Nnode), &
                 nc_depth(nc_Ndepth), &
                 &      STAT=obc_alloc )
       if( obc_alloc /= 0 )   STOP 'nc_readTimeGrid: failed to allocate arrays'
  !(fld_indx,node,depth)
-      ALLOCATE( coef_a(i_totc,nobn,nc_Ndepth), coef_b(i_totc,nobn,nc_Ndepth), &
-              & obcdata(i_totc,nobn,nc_Ndepth), &
+      ALLOCATE( coef_a(i_totc,nc_Nnode,nc_Ndepth), coef_b(i_totc,nc_Nnode,nc_Ndepth), &
+              & obcdata(i_totc,nc_Nnode,nc_Ndepth), &
                    &      STAT=obc_alloc )
       if( obc_alloc /= 0 )   STOP 'nc_readTimeGrid: failed to allocate arrays'
       ALLOCATE( intdata(nsigma-1),&
                 &      STAT=obc_alloc )
       if( obc_alloc /= 0 )   STOP 'nc_readTimeGrid: failed to allocate arrays'
+   !read variables from file
+   !time
+      nf_start(1)=1
+      nf_edges(1)=nc_Ntime
+      iost = nf_get_vara_double(ncid, id_time, nf_start, nf_edges, nc_time)
+      call check_nferr(iost,flf%file_name)
+      ! convert time to days
+      !!NCEP     nc_time = nc_time / 24.0 + julday(1800,1,1)
+!      write(*,*) 'nc_time(1)=',nc_time(1)
+      nc_time = nc_time / nm_nc_secstep + julday(nm_nc_iyear,nm_nc_imm,nm_nc_idd) - 0.5
+!   write(*,*) 'nc_time(1)=',nc_time(1),nm_nc_secstep,nm_nc_iyear,nm_nc_imm,nm_nc_idd,julday(nm_nc_iyear,nm_nc_imm,nm_nc_idd)
+   ! coordinates
+      nf_start(1)=1
+      nf_edges(1)=nc_Nnode
+      iost = nf_get_vara_double(ncid, id_lat, nf_start, nf_edges, nc_lat)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_get_vara_double(ncid, id_lon, nf_start, nf_edges, nc_lon)
+      call check_nferr(iost,flf%file_name)
+      iost = nf_get_vara_double(ncid, id_node, nf_start, nf_edges,nc_node)
+      call check_nferr(iost,flf%file_name)
 
-      if (mype==0) then
-       !read variables from file
-       !time
-          nf_start(1)=1
-          nf_edges(1)=nc_Ntime
-          iost = nf_get_vara_double(ncid, id_time, nf_start, nf_edges, nc_time)
-          call check_nferr(iost,flf%file_name)
-          ! convert time to days
-          !!NCEP     nc_time = nc_time / 24.0 + julday(1800,1,1)
-    !      write(*,*) 'nc_time(1)=',nc_time(1)
-          nc_time = nc_time / nm_nc_secstep + julday(nm_nc_iyear,nm_nc_imm,nm_nc_idd) - 0.5
-    !   write(*,*) 'nc_time(1)=',nc_time(1),nm_nc_secstep,nm_nc_iyear,nm_nc_imm,nm_nc_idd,julday(nm_nc_iyear,nm_nc_imm,nm_nc_idd)
-       ! coordinates
-          nf_start(1)=1
-          nf_edges(1)=nobn
-          iost = nf_get_vara_double(ncid, id_node, nf_start, nf_edges,nc_node)
-          call check_nferr(iost,flf%file_name)
-       ! depth
-          nf_start(1)=1
-          nf_edges(1)=nc_Ndepth
-          iost = nf_get_vara_double(ncid, id_depth, nf_start, nf_edges,nc_depth)
-          call check_nferr(iost,flf%file_name)
+      warn = 0
+      do i = 1, nc_Nnode
+         if ( nc_node(i) /= index_nod2D_ob(i) ) then
+            if ( warn == 0 ) then
+               write(*,*) 'WARNING:: OB nodes in Netcdf file are not the same as in mesh. node:',index_nod2D_ob(i)
+               warn = 1
+            endif
+         endif
+      enddo
 
-          iost = nf_close(ncid)
-          call check_nferr(iost,flf%file_name)
-          warn = 0
-write(*,*) "nc_node:"          ,nc_node
-write(*,*) "in_obn:"          ,in_obn
+!         x  = coord_nod2d(1,i)/rad
+!         y  = coord_nod2d(2,i)/rad
 
-          do i = 1, nobn
-             if ( nc_node(i) /= in_obn(i) ) then
-                if ( warn == 0 ) then
-                   write(*,*) 'WARNING:: OB nodes in Netcdf file are not the same as in mesh. node:',nc_node(i)
-                   warn = 1
-                endif
-             endif
-          enddo
-      endif! (mype==0)
-#ifdef USE_MPI
-      call MPI_BCast(nc_time, nc_Ntime, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_depth, nc_Ndepth, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-#endif
-      DEALLOCATE( nc_node)
+   ! depth
+      nf_start(1)=1
+      nf_edges(1)=nc_Ndepth
+      iost = nf_get_vara_double(ncid, id_depth, nf_start, nf_edges,nc_depth)
+      call check_nferr(iost,flf%file_name)
 
+      iost = nf_close(ncid)
+      call check_nferr(iost,flf%file_name)
 
    END SUBROUTINE nc_readTimeGrid
 
@@ -217,8 +210,8 @@ write(*,*) "in_obn:"          ,in_obn
       !! ** Purpose : Fill names of obc_flfi array (file names and variable names)
 
       !prepare proper nc file (add year and .nc to the end of the file name from namelist
-      write(obc_flfi(i_temp)%file_name,*) trim(nm_tsobc_file)!,yyear,'.nc'
-      write(obc_flfi(i_salt)%file_name,*) trim(nm_tsobc_file)!,yyear,'.nc'
+      write(obc_flfi(i_temp)%file_name,*) trim(nm_tsobc_file),yyear,'.nc'
+      write(obc_flfi(i_salt)%file_name,*) trim(nm_tsobc_file),yyear,'.nc'
 
       obc_flfi(i_temp)%file_name=ADJUSTL(trim(obc_flfi(i_temp)%file_name))
       obc_flfi(i_salt)%file_name=ADJUSTL(trim(obc_flfi(i_salt)%file_name))
@@ -270,15 +263,17 @@ write(*,*) "in_obn:"          ,in_obn
 
       call data_timeinterp(rdate)
 
-!      call apply_obc
+!      call apply_atm_fluxes
 !     no OB apply before first time step
 
 
    END SUBROUTINE nc_obc_ini
 
-   SUBROUTINE apply_obc
+   SUBROUTINE apply_atm_fluxes
       !!----------------------------------------------------------------------
       !! ** Purpose : Change model variables according to OB conditions
+      !  Relaxation with the time scale nm_obc_tau_relax towards a precribed OB profile.
+
       !!----------------------------------------------------------------------
       IMPLICIT NONE
 
@@ -289,21 +284,29 @@ write(*,*) "in_obn:"          ,in_obn
 
 
 
-      do i = 1, mynobn ! go over all OB nodes saved in index_nod2D_ob
+      do i = 1, nc_Nnode ! go over all OB nodes saved in index_nod2D_ob
          ! temperature
          ! interpolate vertical profile from OB obcdata
          !   on curent Z (depth) of node (new values for intdata)
          call profile_interp(i_temp,i)
+         ! hard code, TF should be changed in fv_tracer
+         !TF(:,index_nod2D_ob(i)) = TF(:,index_nod2D_ob(i)) + &
+         !        & dt / nm_obc_tau_relax * (intdata(:)-TF(:,index_nod2D_ob(i)))
+
          ! We change Tclim ans Sclim, so adding to T and S will be done in fv_tracer by cl_relax key
-         Tclim(:,my_in_obn(i)) = intdata(:)
+         Tclim(:,index_nod2D_ob(i)) = intdata(:)
+
+
          ! salinity
          call profile_interp(i_salt,i)
-         Sclim(:,my_in_obn(i)) = intdata(:)
+!         SF(:,index_nod2D_ob(i)) = SF(:,index_nod2D_ob(i)) + &
+!                 & dt / nm_obc_tau_relax * (intdata(:)-SF(:,index_nod2D_ob(i)))
+         Sclim(:,index_nod2D_ob(i)) = intdata(:)
 
       enddo
 
 
-   END SUBROUTINE apply_obc
+   END SUBROUTINE apply_atm_fluxes
 
 
    SUBROUTINE profile_interp(fld_idx,nod_idx)
@@ -320,7 +323,7 @@ write(*,*) "in_obn:"          ,in_obn
 
 
       do i= 1, nsigma-1
-         call binarysearch(nc_Ndepth,nc_depth,Z(i,my_in_obn(nod_idx)),d_indx)
+         call binarysearch(nc_Ndepth,nc_depth,Z(i,index_nod2D_ob(nod_idx)),d_indx)
          if ( d_indx < nc_Ndepth ) then
             d_indx_p1 = d_indx+1
             delta_d = nc_depth(d_indx+1)-nc_depth(d_indx)
@@ -336,7 +339,7 @@ write(*,*) "in_obn:"          ,in_obn
          cf_a  = (data2 - data1)/ delta_d
          ! value of interpolated OB data on Z from model
          cf_b  = data1 - cf_a * nc_depth(d_indx)
-         intdata(i) = cf_a * Z(i,my_in_obn(nod_idx)) + cf_b
+         intdata(i) = cf_a * Z(i,index_nod2D_ob(nod_idx)) + cf_b
 
 
       enddo
@@ -376,7 +379,7 @@ write(*,*) "in_obn:"          ,in_obn
       integer              :: elnodes(4) !4 nodes from one element
       integer              :: numnodes   ! nu,ber of nodes in elem (3 for triangle, 4 for ... )
 
-      ALLOCATE( sbcdata1(nobn,nc_Ndepth), sbcdata2(nobn,nc_Ndepth),&
+      ALLOCATE( sbcdata1(nc_Nnode,nc_Ndepth), sbcdata2(nc_Nnode,nc_Ndepth),&
                 &      STAT=obc_alloc )
 !                data1(elem2D),data2(elem2D), &
       if( obc_alloc /= 0 )   STOP 'getcoeffld: failed to allocate arrays'
@@ -390,11 +393,8 @@ write(*,*) "in_obn:"          ,in_obn
       else ! NO extrapolation to future
          t_indx_p1 = t_indx
          delta_t = 1.0_wp
-         if (mype==0) then
-            write(*,*) "     WARNING:  time lager than last time step in forcing file,"
-            write(*,*) "        last time step will be used as a constant field"
-            write(*,*) "now_date=",now_date,"t_indx=",t_indx,"nc_Ntime=",nc_Ntime,"nc_time(t_indx)=",nc_time(t_indx)
-         endif
+         WRITE(*,*) '     WARNING:  time lager than last time step in forcing file,'
+         WRITE(*,*) '        last time step will be used as a constant field'
          one_field = .true.
       end if
 
@@ -404,39 +404,27 @@ write(*,*) "in_obn:"          ,in_obn
       end if
 
       do fld_idx = 1, i_totc
-         if (mype==0) then
-             !open file obc_flfi
-             iost = nf_open(obc_flfi(fld_idx)%file_name,NF_NOWRITE,ncid)
-             call check_nferr(iost,obc_flfi(fld_idx)%file_name)
-             ! get variable id
-             iost = nf_inq_varid(ncid, obc_flfi(fld_idx)%var_name, id_data)
-             call check_nferr(iost,obc_flfi(fld_idx)%file_name)
-             !read data from file
-             nf_start(1)=1
-             nf_edges(1)=nobn
-             nf_start(2)=1
-             nf_edges(2)=nc_Ndepth
-             nf_start(3)=t_indx
-             nf_edges(3)=1
-             iost = nf_get_vara_double(ncid, id_data, nf_start, nf_edges, sbcdata1)
-             call check_nferr(iost,obc_flfi(fld_idx)%file_name)
-             ! read next time step in file (check for +1 done before)
-             nf_start(3)=t_indx_p1
-             nf_edges(3)=1
-             iost = nf_get_vara_double(ncid, id_data, nf_start, nf_edges, sbcdata2)
-             call check_nferr(iost,obc_flfi(fld_idx)%file_name)
+         !open file obc_flfi
+         iost = nf_open(obc_flfi(fld_idx)%file_name,NF_NOWRITE,ncid)
+         call check_nferr(iost,obc_flfi(fld_idx)%file_name)
+         ! get variable id
+         iost = nf_inq_varid(ncid, obc_flfi(fld_idx)%var_name, id_data)
+         call check_nferr(iost,obc_flfi(fld_idx)%file_name)
+         !read data from file
+         nf_start(1)=1
+         nf_edges(1)=nc_Nnode
+         nf_start(2)=1
+         nf_edges(2)=nc_Ndepth
+         nf_start(3)=t_indx
+         nf_edges(3)=1
+         iost = nf_get_vara_double(ncid, id_data, nf_start, nf_edges, sbcdata1)
+         call check_nferr(iost,obc_flfi(fld_idx)%file_name)
+         ! read next time step in file (check for +1 done before)
+         nf_start(3)=t_indx_p1
+         nf_edges(3)=1
+         iost = nf_get_vara_double(ncid, id_data, nf_start, nf_edges, sbcdata2)
+         call check_nferr(iost,obc_flfi(fld_idx)%file_name)
 
-             iost = nf_close(ncid)
-             call check_nferr(iost,obc_flfi(fld_idx)%file_name)
-         endif
-
-#ifdef USE_MPI
-         call MPI_BCast(sbcdata1(1:nobn,1:nc_Ndepth), nobn*nc_Ndepth, &
-                          MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-         call MPI_BCast(sbcdata2(1:nobn,1:nc_Ndepth), nobn*nc_Ndepth, &
-                          MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-
-#endif
          ! bilinear time interpolation ,
          ! data is assumed to be sampled on a regular grid
          ! calculate new coeficients for interpolations
@@ -444,6 +432,8 @@ write(*,*) "in_obn:"          ,in_obn
          coef_a(fld_idx, :,:) = ( sbcdata2 - sbcdata1 ) / delta_t !( nc_time(t_indx+1) - nc_time(t_indx) )
          coef_b(fld_idx, :,:) = sbcdata1 - coef_a(fld_idx, :,:) * nc_time(t_indx)
 
+         iost = nf_close(ncid)
+         call check_nferr(iost,obc_flfi(fld_idx)%file_name)
 
       end do !fld_idx
 
@@ -493,81 +483,62 @@ write(*,*) "in_obn:"          ,in_obn
 
       namelist/nam_obc/ nm_tsobc_file, nm_obc, &
                         nm_tobc_var, nm_sobc_var, &
+                        nm_obc_tau_relax,&
                         nm_nc_iyear, nm_nc_imm, nm_nc_idd, nm_nc_secstep
 
-      if (mype==0) write(*,*) "= mype= 0 ================================================"
-      if (mype==0) write(*,*) "========= Start: Open Boundary initialization. ==========="
-      if (mype==0) write(*,*) "=========================================================="
+      write(*,*) "Start: Open Bounday inizialization."
 
-      if( nobn == 0 ) then
-         write(*,*) 'obc_ini: NO nodes at open boundary. switch nm_obc to -1 '
-         nm_obc = -1
-         return
-      endif
 !      rdate = time_jd
 !      isec  = 86400.0 *(time_jd - idate)
 
       ! OPEN and read namelist for OBC
       open( unit=nm_obc_unit, file='namelist_bc.nml', form='formatted', access='sequential', status='old', iostat=iost )
       if( iost == 0 ) then
-         if (mype==0) WRITE(*,*) '     file   : ', 'namelist_bc.nml',' open ok'
+         WRITE(*,*) '     file   : ', 'namelist_bc.nml',' open ok'
       else
          WRITE(*,*) 'ERROR: --> bad opening file   : ', 'namelist_bc.nml',' ; iostat=',iost
          STOP 'ERROR: --> obc_ini'
       endif
       READ( nm_obc_unit, nml=nam_obc, iostat=iost )
-      if( iost == 0 ) then
-      else
-         WRITE(*,*) 'ERROR: --> bad reading namelist nam_obc',' ; iostat=',iost
-         STOP 'ERROR: --> obc_ini'
-      endif
       close( unit=nm_obc_unit )
 
-      if (mype==0) then
-        write(*,*) "obc_ini: nm_obc_unit:"
-        write(*,*) "                    : nm_obc = ",nm_obc
-        write(*,*) "                    : nm_tsobc_file = ",nm_tsobc_file
-        write(*,*) "                    : nm_tobc_var = ",nm_tobc_var
-        write(*,*) "                    : nm_sobc_var = ",nm_sobc_var
-        write(*,*) "                    : nm_nc_iyear = ",nm_nc_iyear
-        write(*,*) "                    : nm_nc_imm = ",nm_nc_imm
-        write(*,*) "                    : nm_nc_idd = ",nm_nc_idd
-        write(*,*) "                    : nm_nc_secstep = ",nm_nc_secstep
-      endif
-
       if( nm_obc == -1 ) then
-         if (mype==0) write(*,*) "obc_ini: nm_obc = -1; no open boundary"
+         write(*,*) 'obc_ini: nm_obc = -1; no open boundary'
          return
       endif
 
       !get total number of nodes at open boundary
-!      nc_Nnode = 0
-!      do i = 1, nod2D
-!         if (index_nod2D(i) == 2) nc_Nnode = nc_Nnode + 1
-!      enddo
-
-!      indexes are found in main
+      nc_Nnode = 0
+      do i = 1, nod2D
+         if (index_nod2D(i) == 2) nc_Nnode = nc_Nnode + 1
+      enddo
 
 
 
-!      ALLOCATE( index_nod2D_ob(nc_Nnode),&
-!                &      STAT=obc_alloc )
-!      if( obc_alloc /= 0 )   STOP 'obc_ini: failed to allocate arrays'
+      if( nc_Nnode == 0 ) then
+         write(*,*) 'obc_ini: NO nodes at open boundary. switch nm_obc to -1 '
+         nm_obc = -1
+         return
+      endif
+
+      ALLOCATE( index_nod2D_ob(nc_Nnode),&
+                &      STAT=obc_alloc )
+      if( obc_alloc /= 0 )   STOP 'obc_ini: failed to allocate arrays'
       ! write indexs of OB nodes to index_nod2D_ob
-!      itmp = 0
-!      do i = 1, nod2D
-!         if (index_nod2D(i) == 2) then
-!            itmp = itmp + 1
-!            index_nod2D_ob(itmp) = i
-!         endif
-!      enddo
+      itmp = 0
+      do i = 1, nod2D
+         if (index_nod2D(i) == 2) then
+            itmp = itmp + 1
+            index_nod2D_ob(itmp) = i
+         endif
+      enddo
 !    allocation done after reading nc file
 
       call nc_obc_ini(time_jd)
 
 
 
-      if (mype==0) write(*,*) "DONE:  Open Boundary initialization."
+      write(*,*) "DONE:  Open Boundary inizialization."
    END SUBROUTINE obc_ini
 
 
@@ -592,8 +563,14 @@ write(*,*) "in_obn:"          ,in_obn
          return
       endif
 
+      if( nc_Nnode == 0 ) then
+         ! NO nodes at open boundary
+         return
+      endif
+
       rdate = time_jd
 !      rsec  = 86400.0 *(time_jd - rdate)
+
       if( .not. one_field ) then
          ! IF NOT one time step in IN files
          !assuming that OBC were changed during previews time
@@ -610,8 +587,8 @@ write(*,*) "in_obn:"          ,in_obn
       endif
 
 
-      ! change model ocean parameters (Tclim and Sclim)
-      call apply_obc
+      ! change model ocean parameteres
+      call apply_atm_fluxes
 
 
 
@@ -709,7 +686,8 @@ write(*,*) "in_obn:"          ,in_obn
       IMPLICIT NONE
 
 
-      DEALLOCATE( nc_time, &
+      DEALLOCATE( nc_lon, nc_lat, &
+                  nc_time, nc_node, &
                   nc_depth, coef_a, coef_b, &
                   obcdata, intdata, index_nod2D_ob)
 

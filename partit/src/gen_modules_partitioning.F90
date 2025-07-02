@@ -13,7 +13,7 @@ save
 
  integer                                :: MPI_COMM_FESOM
  integer, parameter   :: MAX_LAENDERECK=8
- integer, parameter   :: MAX_NEIGHBOR_PARTITIONS=32
+ integer, parameter   :: MAX_NEIGHBOR_PARTITIONS=64   !32
   type com_struct
      integer                                       :: rPEnum ! the number of PE I receive info from 
      integer, dimension(MAX_NEIGHBOR_PARTITIONS)   :: rPE    ! their list
@@ -187,7 +187,7 @@ subroutine check_partitioning
   ! trying not to spoil the load balance.
 
   use o_MESH
-  integer :: i, j, k, n, n_iso, n_iter, is, ie, kmax, np
+  integer :: i, j, k, n, n_iso, n_iter, is, ie, kmax, np, cnt
   integer :: nod_per_partition(2,0:npes-1)
   integer :: max_nod_per_part(2), min_nod_per_part(2)
   integer :: average_nod_per_part(2), node_neighb_part(100)
@@ -218,20 +218,21 @@ subroutine check_partitioning
   allocate(ne_part(max_adjacent_nodes), ne_part_num(max_adjacent_nodes), &
        ne_part_load(2,max_adjacent_nodes))
 
-  isolated_nodes_check: do n_iter = 1, 10
-     print *,' '
-     print *,'Check for isolated nodes, new iteration ========'
+  !SH isolated_nodes_check: do n_iter = 1, 10
+  !   print *,' '
+  !   print *,'Check for isolated nodes, new iteration ========'
      n_iso = 0
-     do n=1,nod2D
+     checkloop: do n=1,nod2D
         is = ssh_stiff%rowptr(n)
         ie = ssh_stiff%rowptr(n+1) -1
+        cnt = ie-is+1
 
-        node_neighb_part(1:ie-is) = part(ssh_stiff%colind(is:ie))
-        if (count(node_neighb_part(1:ie-is) == part(n)) <= 1) then
+        node_neighb_part(1:cnt) = part(ssh_stiff%colind(is:ie))
+        if (count(node_neighb_part(1:cnt) == part(n)) <= 1) then
 
            n_iso = n_iso+1
            print *,'Isolated node',n, 'in partition', part(n)
-           print *,'Neighbouring nodes are in partitions',  node_neighb_part(1:ie-is)
+           print *,'Neighbouring nodes are in partitions',  node_neighb_part(1:cnt)
 
            ! count the adjacent nodes of the other PEs
 
@@ -241,7 +242,7 @@ subroutine check_partitioning
            ne_part_load(1,1) = nod_per_partition(1,ne_part(1)) + 1
            ne_part_load(2,1) = nod_per_partition(2,ne_part(1)) + nlevels_nod2D(n)
 
-           do i=1,ie-is
+           do i=1,cnt
               if (node_neighb_part(i)==part(n)) cycle
               already_counted = .false.
               do k=1,np
@@ -273,7 +274,8 @@ subroutine check_partitioning
 
            if (ne_part_num(kmax) <= 1) then
               print *,'Sorry, no chance to solve an isolated node problem'
-              exit isolated_nodes_check
+              !exit isolated_nodes_check
+              cycle checkloop
            endif
 
            if  (ne_part_load(1,kmax) <= max_nod_per_part(1) .and. &
@@ -310,15 +312,16 @@ subroutine check_partitioning
            ! And, finally, move nod n to other partition        
            part(n) = ne_part(k)
            print *,'Node',n,'is moved to part',part(n)
+           n_iso=n_iso-1
         endif
-     enddo
+     enddo checkloop
 
-     if (n_iso==0) then
-        print *,'No isolated nodes found'
-        exit isolated_nodes_check 
-     endif
-     ! Check for isolated nodes again
-  end do isolated_nodes_check
+  !   if (n_iso==0) then
+  !      print *,'No isolated nodes found'
+  !      exit isolated_nodes_check 
+  !   endif
+  !   ! Check for isolated nodes again
+  !SHend do isolated_nodes_check
 
   deallocate(ne_part, ne_part_num, ne_part_load)
 

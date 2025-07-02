@@ -4,7 +4,7 @@ SUBROUTINE momentum_adv_p1
 !a modification by Alexey Androsov
 !a (for sigma coordinates)
 !a 09.10.14
-!
+! 
 USE o_MESH
 USE o_ARRAYS
 USE o_PARAM
@@ -17,28 +17,28 @@ real(kind=WP)  :: tx, ty, uu, vv
 real(kind=WP)  :: un, u1, v1, xe, ye, acc
 integer       :: n, elem, nz, k,  m
 integer       :: nodes(2), el(2), ed
-
+ 
  DO ed=1, edge2D_in
-   nodes=edge_nodes(:,ed)
+   nodes=edge_nodes(:,ed)   
    el=edge_tri(:,ed)
 
    xe=edge_dxdy(1,ed)*r_earth*0.5_WP*(elem_cos(el(1))+elem_cos(el(2)))
    ye=edge_dxdy(2,ed)*r_earth
    acc = sum(ac(nodes))/2.0_WP
-                           ! since velocities are obtained by averaging,
-			   ! one cannot introduce clean metrics here!
+                           ! since velocities are obtained by averaging, 
+			   ! one cannot introduce clean metrics here!   
 ! Only faces that do not belong to
 ! vertical walls can contribute to
-! the momentum advection
+! the momentum advection 
    DO nz=1,nsigma-1
-   !======
+   !====== 
    ! The piece below gives second order spatial accuracy for
-   ! the momentum fluxes.
+   ! the momentum fluxes. 
    !======
-
+   
    u1=0.5_WP*(Unode(nz,nodes(1))+Unode(nz,nodes(2)))
    v1=0.5_WP*(Vnode(nz,nodes(1))+Vnode(nz,nodes(2)))
-
+   
    !======
    ! Normal velocity at edge ed directed to el(2)
    ! (outer to el(1)) multiplied with the length of the edge
@@ -50,7 +50,7 @@ integer       :: nodes(2), el(2), ed
    U_rhsAB(nz,el(2))=U_rhsAB(nz,el(2))+u1*un*acc
    V_rhsAB(nz,el(2))=V_rhsAB(nz,el(2))+v1*un*acc
    END DO
- END DO
+ END DO  
 
 #ifdef USE_MPI
  call exchange_elem(U_rhsAB)
@@ -62,7 +62,7 @@ END subroutine momentum_adv_p1
 
 !==========================================================================================
 SUBROUTINE momentum_adv_upwind
-
+ 
   ! Linear reconstruction upwind horizontal momentum advection.
   ! It is typically too damping or too noisy, so other options are
   ! recommended instead.
@@ -91,16 +91,16 @@ SUBROUTINE momentum_adv_upwind
   integer :: edglim
 
   uu(:,:)=0.0_WP; vv(:,:)=0.0_WP
-
+  
   ! ======================
   ! Horizontal momentum advection   -\int div(uu)dS=-\sum u(un)l
-  ! (assembly over edges)
+  ! (assembly over edges)        
   ! ======================
 !$OMP PARALLEL PRIVATE(u1,u2,v1,v2,un,acc,ed,el,nz,me_el1, me_el2,chunk,nthreads)
-
+ 
   !$  nthreads = omp_get_num_threads()
   !$  me = omp_get_thread_num()
-  !$  chunk = elem2D / nthreads + 1
+  !$  chunk = elem2D / nthreads + 1 
   !$  me_el1 = me*chunk +1
   !$  me_el2 = min((me+1)*chunk, elem2D)
 
@@ -120,18 +120,18 @@ SUBROUTINE momentum_adv_upwind
      el=edge_tri(:,ed)
 
      if (minval(el)==0) print *,mype,'OBACHT!!! edge discrepancy'
-
+     
      acc = 0.5_WP * sum(ac(edge_nodes(:,ed)))
 
-
+     
      ! Only faces that do not belong to
      ! vertical walls can contribute to
-     ! the momentum advection
+     ! the momentum advection 
 
      do nz=1,nsigma-1
-        !======
+        !====== 
         ! The piece below gives second order spatial accuracy for
-        ! the momentum fluxes.
+        ! the momentum fluxes. 
         !======
         u1 = U_n(nz,el(1))- vel_grad_ux(nz,el(1))*edge_cross_dxdy(1,ed) &
              -vel_grad_uy(nz,el(1))*edge_cross_dxdy(2,ed)
@@ -141,7 +141,7 @@ SUBROUTINE momentum_adv_upwind
              -vel_grad_uy(nz,el(2))*edge_cross_dxdy(4,ed)
         v2 = V_n(nz,el(2))- vel_grad_vx(nz,el(2))*edge_cross_dxdy(3,ed) &
              -vel_grad_vy(nz,el(2))*edge_cross_dxdy(4,ed)
-
+   
         !======
         ! Normal velocity at edge ed directed to el(2)
         ! (outer to el(1)) multiplied with the length of the edge
@@ -149,20 +149,20 @@ SUBROUTINE momentum_adv_upwind
         !======
         un = 0.5_WP* r_earth* Jd(nz,ed)* &
            ((u1+u2)*edge_dxdy(2,ed) - (v1*elem_cos(el(1))+v2*elem_cos(el(2)))*edge_dxdy(1,ed))
-
+      
         !======
         ! If it is positive, take velocity in the left element (el(1)),
         ! and use the velocity at el(2) otherwise.
-        !======
-
-        if(un>=0.0_WP) then
-           uu(nz,ed) = u1*un*acc
+        !======  
+   
+        if(un>=0.0_WP) then    
+           uu(nz,ed) = u1*un*acc    
            vv(nz,ed) = v1*un*acc
-        else
-           uu(nz,ed) = u2*un*acc
+        else    
+           uu(nz,ed) = u2*un*acc    
            vv(nz,ed) = v2*un*acc
         end if
-
+   
      END DO
   END DO
 !$OMP END DO
@@ -202,17 +202,17 @@ SUBROUTINE momentum_vert_adv
 
   ! Vertical momentum advection and viscosity
   ! For advection, quadratic upwind reconstruction is used.
-
+ 
   USE o_PARAM
   USE o_MESH
   USE o_ARRAYS
-
+  
   USE g_PARSUP
   use g_comm_auto
 
   IMPLICIT NONE
 
-  integer          :: el,  nz, is, ie
+  integer          :: el,  nz, is, ie 
   real(kind=WP)    :: w(nsigma-1), acc
   real(kind=WP)    :: a, b, c, d, dg, db, da, f
   real(kind=WP)    :: Z1(2:nsigma-1), Ze(nsigma-1)
@@ -220,19 +220,19 @@ SUBROUTINE momentum_vert_adv
   real(kind=WP)    :: u_mean(nsigma), v_mean(nsigma)
 
   ! =======================
-  ! Vertical momentum advection
+  ! Vertical momentum advection 
   ! and vertical viscosity
   ! =======================
 
-!$OMP DO
+!$OMP DO 
 
   !NR  I have split the inner loop, nz, to allow for at least
   !NR  some vectorization.
 
   DO el=1, myDim_elem2D
-
+  
      If (mask_wd(el) /= 0.0_WP) then
-
+        
         ! Nodal values projected to the element
 
         acc = sum(w_cv(1:4,el)*ac(elem2D_nodes(1:4,el)))
@@ -252,11 +252,11 @@ SUBROUTINE momentum_vert_adv
                        + w_cv(2,el)*Z(1:nsigma-1,elem2D_nodes(2,el)) &
                        + w_cv(3,el)*Z(1:nsigma-1,elem2D_nodes(3,el)) &
                        + w_cv(4,el)*Z(1:nsigma-1,elem2D_nodes(4,el))
-
+     
 
         u_mean(1)= -w(1)*U_n(1,el)
         v_mean(1)= -w(1)*V_n(1,el)
-
+     
         is = 2
         if(w(2) <= 0.0_WP) then
            is=3
@@ -264,17 +264,17 @@ SUBROUTINE momentum_vert_adv
            v_mean(2) = -0.5_WP* w(2) *(V_n(1,el)+V_n(2,el))
         endif
 
-        ie = nsigma-1
-        if (w(nsigma-1) >=0.0_WP) then
+        ie = nsigma-1   
+        if (w(nsigma-1) >=0.0_WP) then 
            ie=nsigma-2
            u_mean(nsigma-1) = -0.5_WP* w(nsigma-1) *(U_n(nsigma-2,el)+U_n(nsigma-1,el))
            v_mean(nsigma-1) = -0.5_WP* w(nsigma-1) *(V_n(nsigma-2,el)+V_n(nsigma-1,el))
            ! or replace this with first
-           ! order upwind
+           ! order upwind 
         endif
 
-        u_mean(nsigma)=0.0_WP
-        v_mean(nsigma)=0.0_WP
+        u_mean(nsigma)=0.0_WP 
+        v_mean(nsigma)=0.0_WP 
 
         DO nz=is, ie
 
@@ -283,7 +283,7 @@ SUBROUTINE momentum_vert_adv
 
            if(w(nz) >=0.0_WP) then
 
-              c = -(Z1(nz) - Ze(nz+1))
+              c = -(Z1(nz) - Ze(nz+1)) 
 
               d = 1._WP/(( Ze(nz+1)-Ze(nz-1))*(b*b-a*a) - (c*c-a*a)*(Ze(nz)- Ze(nz-1)))
 
@@ -293,7 +293,7 @@ SUBROUTINE momentum_vert_adv
 
               u_mean(nz) = -w(nz)*( U_n(nz-1,el)*(1.0_WP-dg-db) + U_n(nz,el)*db + U_n(nz+1,el)*dg)
               v_mean(nz) = -w(nz)*( V_n(nz-1,el)*(1.0_WP-dg-db) + V_n(nz,el)*db + V_n(nz+1,el)*dg)
-
+        
 
            else !            if(w<0.0_WP) then
 
@@ -303,14 +303,14 @@ SUBROUTINE momentum_vert_adv
               dg = a*b*(Ze(nz) - Ze(nz-1))*d
               db =-b*f*(Ze(nz) - Ze(nz-2))*d
               !da= 1.0_WP-dg-db
-
+           
               u_mean(nz) = -w(nz) *( U_n(nz,el)*(1.0_WP-dg-db) + U_n(nz-1,el)*db + U_n(nz-2,el)*dg)
               v_mean(nz) = -w(nz) *( V_n(nz,el)*(1.0_WP-dg-db) + V_n(nz-1,el)*db + V_n(nz-2,el)*dg)
-
+           
            end if
 
         END DO
-
+ 
 	!  if(i_mean_visc) then
 	!  uvert(1:2,1)=0.0_WP
 	!  uvert(1:2,nsigma)=0.0_WP
@@ -321,14 +321,14 @@ SUBROUTINE momentum_vert_adv
 
 
         DO nz=1,nsigma-1
-           U_rhsAB(nz,el) = U_rhsAB(nz,el) +(u_mean(nz)-u_mean(nz+1))*acc
+           U_rhsAB(nz,el) = U_rhsAB(nz,el) +(u_mean(nz)-u_mean(nz+1))*acc 
            !/(zbar(nz,elem)-zbar(nz+1,elem))
-
-           V_rhsAB(nz,el) = V_rhsAB(nz,el) +(v_mean(nz)-v_mean(nz+1))*acc
+        
+           V_rhsAB(nz,el) = V_rhsAB(nz,el) +(v_mean(nz)-v_mean(nz+1))*acc 
            !/(zbar(nz,elem)-zbar(nz+1,elem))
-
+        
         END DO
-
+     
      else  ! dry elements
 
         DO nz=1,nsigma-1
@@ -355,7 +355,7 @@ SUBROUTINE momentum_vert_adv_upwind
 
   ! Vertical momentum advection
   ! For advection, quadratic upwind reconstruction is used.
-
+ 
   USE o_PARAM
   USE o_MESH
   USE o_ARRAYS
@@ -369,7 +369,7 @@ SUBROUTINE momentum_vert_adv_upwind
   real(kind=WP)    :: umean, vmean, a, b, c, d, dg, da, db
   real(kind=WP)    :: Z1
   real(kind=WP), allocatable  :: uvertAB(:,:)
-
+  
   allocate(uvertAB(2,nsigma))
 
   ! =======================
@@ -379,11 +379,11 @@ SUBROUTINE momentum_vert_adv_upwind
   uvertAB=0.0_WP
   !!$OMP DO
   DO elem=1, myDim_elem2D
-
+ 
      If (mask_wd(elem) /= 0.0_WP) then
-
+   
         elnodes=elem2D_nodes(:,elem)
-
+        
         acc = sum(w_cv(1:4,elem)*ac(elnodes))
 
         DO nz=2, nsigma-1
@@ -396,7 +396,7 @@ SUBROUTINE momentum_vert_adv_upwind
                  umean=0.5_WP*(U_n(nz-1,elem)+U_n(nz,elem))
                  vmean=0.5_WP*(V_n(nz-1,elem)+V_n(nz,elem))
                                            ! or replace this with first
-                                           ! order upwind
+                                           ! order upwind 
               else
                  Z1 = sum(w_cv(1:4,elem)*zbar(nz,elnodes))
                  a=Z1 - sum(w_cv(1:4,elem)*Z(nz-1,elnodes))
@@ -435,7 +435,7 @@ SUBROUTINE momentum_vert_adv_upwind
         END DO
 
         w=sum(w_cv(1:4,elem)*Wvel(1,elnodes))*elem_area(elem)
-
+     
         uvertAB(1,1)= -w*U_n(1,elem)
         uvertAB(2,1)= -w*V_n(1,elem)
 
@@ -446,7 +446,7 @@ SUBROUTINE momentum_vert_adv_upwind
            U_rhsAB(nz,elem)=U_rhsAB(nz,elem) +(uvertAB(1,nz)-uvertAB(1,nz+1))*acc
            V_rhsAB(nz,elem)=V_rhsAB(nz,elem) +(uvertAB(2,nz)-uvertAB(2,nz+1))*acc
         END DO
-
+   
      else  ! dry elements
 
         DO nz=1,nsigma-1
@@ -458,7 +458,7 @@ SUBROUTINE momentum_vert_adv_upwind
   END DO
   !!$OMP END DO
 
-  deallocate(uvertAB)
+  deallocate(uvertAB) 
 
 #ifdef USE_MPI
   call exchange_elem(U_rhsAB)
@@ -476,7 +476,7 @@ USE o_PARAM
 IMPLICIT NONE
 
 real(kind=WP)      :: un1, un2, ux, vy, x1, y1, x2, y2, dmean ,acc , fU(4), fV(4)
-real(kind=WP), allocatable  ::  Unode_2D(:), Vnode_2D(:)
+real(kind=WP), allocatable  ::  Unode_2D(:), Vnode_2D(:) 
 integer              :: n, elem, elnodes(4)
 integer              :: nodes(2), el(2), ed
 
@@ -490,8 +490,8 @@ integer              :: nodes(2), el(2), ed
  ! ==============
  ! internal edges
  ! ==============
-DO ed=1, edge2D_in
-   nodes=edge_nodes(:,ed)
+DO ed=1, edge2D_in 
+   nodes=edge_nodes(:,ed)   
    el=edge_tri(:,ed)
    x1=edge_cross_dxdy(1,ed)
    y1=edge_cross_dxdy(2,ed)
@@ -504,7 +504,7 @@ DO ed=1, edge2D_in
    un2=-(UAB(2,el(2))*x2- UAB(1,el(2))*y2)*dmean
    ux=un1*UAB(1,el(1))+un2*UAB(1,el(2))
    vy=un1*UAB(2,el(1))+un2*UAB(2,el(2))
-
+   
    Unode_2D(nodes(1))=Unode_2D(nodes(1))+acc*ux/area(nodes(1))
    Unode_2D(nodes(2))=Unode_2D(nodes(2))-acc*ux/area(nodes(2))
    Vnode_2D(nodes(1))=Vnode_2D(nodes(1))+acc*vy/area(nodes(1))
@@ -514,8 +514,8 @@ DO ed=1, edge2D_in
  ! boundary edges
  ! =============
 
- DO ed=1+edge2D_in, edge2D
-   nodes=edge_nodes(:,ed)
+ DO ed=1+edge2D_in, edge2D 
+   nodes=edge_nodes(:,ed)   
    el=edge_tri(:,ed)
    x1=edge_cross_dxdy(1,ed)
    y1=edge_cross_dxdy(2,ed)
@@ -525,7 +525,7 @@ DO ed=1, edge2D_in
    un1=(UAB(2,el(1))*x1- UAB(1,el(1))*y1)*dmean
    ux=un1*UAB(1,el(1))
    vy=un1*UAB(2,el(1))
-
+ 
    Unode_2D(nodes(1))=Unode_2D(nodes(1))+acc*ux/area(nodes(1))
    Unode_2D(nodes(2))=Unode_2D(nodes(2))-acc*ux/area(nodes(2))
    Vnode_2D(nodes(1))=Vnode_2D(nodes(1))+acc*vy/area(nodes(1))
@@ -540,6 +540,81 @@ DO ed=1, edge2D_in
  END DO
  deallocate(Unode_2D,Vnode_2D)
 end subroutine momentum_adv_scalar_2D
+!========================================================================================
+SUBROUTINE riv_mom_adv_2D
+!VF, riv_mom_adv_2D
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+IMPLICIT NONE
+
+real(kind=WP)        ::  x1, y1, dmean
+integer              :: n, ne, nel
+integer              :: nodes(2)
+ ! =============
+ ! boundary edges
+ ! =============
+ 
+ riv_vel=0.0_WP
+ DO n=1, riv_amount
+   ne=riv_ind_eg(n)
+   nodes=edge_nodes(:,ne)   
+   x1=edge_cross_dxdy(1,ne)
+   y1=edge_cross_dxdy(2,ne)
+   ne=ne-edge2D_in
+
+!if (type_task>1) then
+dmean=sum(Jc_old(1:nsigma-1,nodes))*0.5_WP
+!else
+!   dmean=sum(eta_n(nodes)+depth(nodes))*0.5_WP
+!   dmean=max(Dmin,dmean)
+!endif
+
+   riv_vel(1,n)=Qr(ne)**2*scos(ne)/(sqrt(x1**2+y1**2)*dmean)
+   riv_vel(2,n)=Qr(ne)**2*ssin(ne)/(sqrt(x1**2+y1**2)*dmean)
+  ! riv_vel(1,n)=UAB(1,nel)*Qr(ne)*scos(ne)/(sqrt(x1**2+y1**2)*dmean)
+  ! riv_vel(2,n)=UAB(2,nel)*Qr(ne)*ssin(ne)/(sqrt(x1**2+y1**2)*dmean)
+ END DO
+
+!write(*,*) 'let"sv see, l, riv_vel', elem_area(edge_tri(1,riv_ind_eg)), riv_vel(1,:)*dt_2D/elem_area(edge_tri(1,riv_ind_eg)),&
+!riv_vel(2,:)*dt_2D/elem_area(edge_tri(1,riv_ind_eg))
+
+end SUBROUTINE riv_mom_adv_2D
+
+!========================================================================================
+SUBROUTINE riv_mom_adv_3D
+!VF, riv_mom_adv_3D
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+IMPLICIT NONE
+
+real(kind=WP)        ::  x1, y1, dmean, dmean_sq(nsigma-1)
+integer              :: n, ne, nel
+integer              :: nodes(2)
+ ! =============
+ ! boundary edges
+ ! =============
+ 
+ riv_vel=0.0_WP
+ DO n=1, riv_amount
+   ne=riv_ind_eg(n)
+   nodes=edge_nodes(:,ne)   
+   x1=edge_cross_dxdy(1,ne)
+   y1=edge_cross_dxdy(2,ne)
+   ne=ne-edge2D_in
+   dmean=sum(eta_n(nodes)+depth(nodes))*0.5_WP
+   dmean_sq=max(Dmin,dmean)*(sigma(1:nsigma-1) - sigma(2:nsigma))
+   riv_vel_u(1:nsigma-1,n)=scos(ne)*(Qr(ne)*Qr_sig(1:nsigma-1,ne))**2/(sqrt(x1**2+y1**2)*dmean_sq)
+   riv_vel_v(1:nsigma-1,n)=ssin(ne)*(Qr(ne)*Qr_sig(1:nsigma-1,ne))**2/(sqrt(x1**2+y1**2)*dmean_sq)
+  ! riv_vel_u(1:nsigma-1,n)=U_n(1:nsigma-1,nel)*Qr(ne)*scos(ne)*Qr_sig(1:nsigma-1,ne)&
+  ! /(sqrt(x1**2+y1**2)*Jd(1:nsigma-1,ne+edge2D_in))
+  ! riv_vel_v(1:nsigma-1,n)=V_n(1:nsigma-1,nel)*Qr(ne)*ssin(ne)*Qr_sig(1:nsigma-1,ne)&
+  ! /(sqrt(x1**2+y1**2)*Jd(1:nsigma-1,ne+edge2D_in))
+
+ END DO
+
+end SUBROUTINE riv_mom_adv_3D
 
 ! ============================================================
 
@@ -559,13 +634,13 @@ SUBROUTINE momentum_adv_upwind_2D
   !real(kind=WP) :: uu(edge2D_in), vv(edge2D_in)
 !SHTEST
   real(kind=WP)    :: uu(myDim_edge2D+eDim_edge2D), vv(myDim_edge2D+eDim_edge2D)
-
+  
   integer :: edglim
 
   ! ======
   ! Upwind momentum advection with linear velocity reconstruction
   ! ======
-
+  
   do ed=1,myDim_edge2D+eDim_edge2D
      uu(ed)=0.0_WP
      vv(ed)=0.0_WP
@@ -589,13 +664,13 @@ SUBROUTINE momentum_adv_upwind_2D
      dmean = max(Dmin,0.5_WP * sum(etaAB(edge_nodes(:,ed))+depth(edge_nodes(:,ed))))
      acc = sum(ac(edge_nodes(:,ed)))*0.5_WP
 
-     el=edge_tri(:,ed)
+     el=edge_tri(:,ed) 
      ! edge_cross_dxdy(1:4,ed)  ! They are in physical measure
-     ! edge_dxdy(1:2,ed)        ! They are in radian measure
-
-     !======
+     ! edge_dxdy(1:2,ed)        ! They are in radian measure        
+   
+     !====== 
      ! Linear reconstruction upwind
-     !======
+     !====== 
      u1 = UAB(1,el(1)) - vel_grad(1,el(1))*edge_cross_dxdy(1,ed) -vel_grad(2,el(1))*edge_cross_dxdy(2,ed)
      v1 = UAB(2,el(1)) - vel_grad(3,el(1))*edge_cross_dxdy(1,ed) -vel_grad(4,el(1))*edge_cross_dxdy(2,ed)
      u2 = UAB(1,el(2)) - vel_grad(1,el(2))*edge_cross_dxdy(3,ed) -vel_grad(2,el(2))*edge_cross_dxdy(4,ed)
@@ -607,12 +682,12 @@ SUBROUTINE momentum_adv_upwind_2D
      !======
      un = 0.5_WP*r_earth*dmean* &
           ((u1+u2)*edge_dxdy(2,ed)-(v1*elem_cos(el(1))+v2*elem_cos(el(2)))*edge_dxdy(1,ed))
-
+   
      !======
      ! If it is positive, take velocity in the left element (el(1)),
      ! and use the velocity at el(2) otherwise.
-     !======
-
+     !======  
+   
      ! According to FVCOM paper 2003, they do not use linear
      ! reconstruction other than to estimate the normal velocity.
      ! To get their scheme, uncomment 4 lines below:
@@ -625,12 +700,12 @@ SUBROUTINE momentum_adv_upwind_2D
      !SH Workaround to get over underflow checks
 !!$     if (abs(un)<1.0e-20) un=0.0_WP
 !!$     if (abs(acc)<1.0e-20) acc=0.0_WP
-!!$
+!!$     
 !!$     if (abs(u1)<1.0e-20) u1=0.0_WP
 !!$     if (abs(u2)<1.0e-20) u2=0.0_WP
 !!$     if (abs(v1)<1.0e-20) v1=0.0_WP
 !!$     if (abs(v2)<1.0e-20) v2=0.0_WP
-
+     
      !NR u2=0.5_WP*((un+abs(un))*u1+(un-abs(un))*u2)
      !NR v2=0.5_WP*((un+abs(un))*v1+(un-abs(un))*v2)
      !NR On modern (Xeon) architecture, an "if" is rather cheap
@@ -641,7 +716,7 @@ SUBROUTINE momentum_adv_upwind_2D
         uu(ed) = un*u2*acc
         vv(ed) = un*v2*acc
      endif
-
+     
   ENDDO
 
 !$OMP END PARALLEL DO
@@ -667,9 +742,9 @@ SUBROUTINE momentum_adv_upwind_2D
 
 
 end subroutine momentum_adv_upwind_2D
-! AB3 time stepping, with the momentm advection in the
-! form u\nabla u. It allows to make the code faster, but needs for
-! that special versions of other routines included in this file.
+! AB3 time stepping, with the momentm advection in the 
+! form u\nabla u. It allows to make the code faster, but needs for 
+! that special versions of other routines included in this file.  
 
 !=====================================================================================
 
@@ -703,10 +778,10 @@ SUBROUTINE momentum_adv_P1_3D_to_2D
   ! Momentum advection is assembled on scalar control volumes
   ! and then averaged to triangles. This removes noise
   ! ======
-
+ 
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(elem,nodes,el,ed,xe,ye,un,acc,uu,vv)
 
-  !===================================
+  !=================================== 
   !   Only faces that do not belong to
   !    vertical walls can contribute to
   !         the momentum advection
@@ -724,22 +799,22 @@ SUBROUTINE momentum_adv_P1_3D_to_2D
 #ifdef USE_MPI
      if (myList_edge2D(ed)>edge2D_in) cycle
 #endif
-
-     nodes = edge_nodes(:,ed)
+    
+     nodes = edge_nodes(:,ed)   
      el = edge_tri(:,ed)
      acc = sum(ac(nodes))*.5_WP
 
      xe = edge_dxdy(1,ed)*r_earth*0.5_WP*(elem_cos(el(1))+elem_cos(el(2)))
      ye = edge_dxdy(2,ed)*r_earth
-                           ! since velocities are obtained by averaging,
-			   ! one cannot introduce clean metrics here!
+                           ! since velocities are obtained by averaging, 
+			   ! one cannot introduce clean metrics here!   
 
 
 
      !===================================
      !        The piece below gives
      !  second order spatial accuracy for
-     !        the momentum fluxes.
+     !        the momentum fluxes. 
      !===================================
      uu(1:nsigma-1) = 0.5_WP*(Unode_p(1:nsigma-1,nodes(1)) + Unode_p(1:nsigma-1,nodes(2)))
      vv(1:nsigma-1) = 0.5_WP*(Vnode_p(1:nsigma-1,nodes(1)) + Vnode_p(1:nsigma-1,nodes(2)))
@@ -750,17 +825,17 @@ SUBROUTINE momentum_adv_P1_3D_to_2D
      !======
      un(1:nsigma-1) =  (uu(1:nsigma-1)*ye -vv(1:nsigma-1)*xe) *Jd(1:nsigma-1,ed)
 
-
-     !NR Eventually, we are interested in the vertical average. Do it already here,
+     
+     !NR Eventually, we are interested in the vertical average. Do it already here, 
      !NR as soon as possible.
      u_e1(ed) = acc* sum(uu(1:nsigma-1) *un(1:nsigma-1) *Je(1:nsigma-1,el(1)))
      v_e1(ed) = acc* sum(vv(1:nsigma-1) *un(1:nsigma-1) *Je(1:nsigma-1,el(1)))
      u_e2(ed) = acc* sum(uu(1:nsigma-1) *un(1:nsigma-1) *Je(1:nsigma-1,el(2)))
      v_e2(ed) = acc* sum(vv(1:nsigma-1) *un(1:nsigma-1) *Je(1:nsigma-1,el(2)))
-
+   
   END DO
 !$OMP END DO
-!$OMP END PARALLEL
+!$OMP END PARALLEL 
 
   !NROMP  Loop to be parallelized!
   DO  ed=1, edglim
@@ -788,7 +863,9 @@ SUBROUTINE momentum_adv_P1_3D_to_2D
   call exchange_elem(U_rhs_2D_3D)
 #endif
 
-!SHDB print *,'U_RHS_2D_3D: ',mype,minval(U_rhs_2D_3D),maxval(U_rhs_2D_3D)
+#ifdef DEBUG
+  print *,'U_RHS_2D_3D: ',mype,minval(U_rhs_2D_3D),maxval(U_rhs_2D_3D)
+#endif
 
 end subroutine momentum_adv_P1_3D_to_2D
 
@@ -819,8 +896,8 @@ integer                :: elnodes_1(4), elnodes_2(4)
 ! ============
 
  DO ed=1, edge2D
-
-   nodes=edge_nodes(:,ed)
+ 
+   nodes=edge_nodes(:,ed)  
    el=edge_tri(:,ed)
    x1=edge_cross_dxdy(1,ed)
    y1=edge_cross_dxdy(2,ed)
@@ -848,15 +925,15 @@ integer                :: elnodes_1(4), elnodes_2(4)
    END DO
    END IF
  END DO
-
+ 
  if (vert_adv == 2) then
 
 ! =============
 ! The vertical part
 ! =============
  DO ed=1, edge2D
-
-   nodes=edge_nodes(:,ed)
+ 
+   nodes=edge_nodes(:,ed)  
    el=edge_tri(:,ed)
    elnodes_1=elem2D_nodes(:,el(1))
    elnodes_2=elem2D_nodes(:,el(2))
@@ -871,11 +948,11 @@ integer                :: elnodes_1(4), elnodes_2(4)
    wu(1)=U_n(1,el(1))*elem_area(el(1))/ff1
    wu(2:nl1)=0.5_WP*(U_n(2:nl1,el(1))+U_n(1:nl1-1,el(1)))*elem_area(el(1))/ff1
    wu(nl1+1)=0.0_WP
-
+  
    wv(1)=V_n(1,el(1))*elem_area(el(1))/ff1
    wv(2:nl1)=0.5_WP*(V_n(2:nl1,el(1))+V_n(1:nl1-1,el(1)))*elem_area(el(1))/ff1
    wv(nl1+1)=0.0_WP
-
+  
    wuw(1:nl1+1)=wu*Wvel(1:nl1+1,nodes(1))
    wvw(1:nl1+1)=wv*Wvel(1:nl1+1,nodes(1))
    DO nz=1,nl1
@@ -884,7 +961,7 @@ integer                :: elnodes_1(4), elnodes_2(4)
    Vnode_rhs(nz,nodes(1))=Vnode_rhs(nz,nodes(1))-(wvw(nz)-wvw(nz+1))/ &
     (zbar(nz+1,nodes(1))-zbar(nz,nodes(1)))/area(nodes(1))
    END DO
-
+  
    wuw(1:nl1+1)=wu*Wvel(1:nl1+1,nodes(2))
    wvw(1:nl1+1)=wv*Wvel(1:nl1+1,nodes(2))
    DO nz=1,nl1
@@ -893,16 +970,16 @@ integer                :: elnodes_1(4), elnodes_2(4)
    Vnode_rhs(nz,nodes(2))=Vnode_rhs(nz,nodes(2))-(wvw(nz)-wvw(nz+1))/ &
     (zbar(nz+1,nodes(2))-zbar(nz,nodes(2)))/area(nodes(2))
    END DO
-
+  
    if(el(2)>0) then
    wu(1)=U_n(1,el(2))*elem_area(el(2))/ff2
    wu(2:nl1)=0.5_WP*(U_n(2:nl1,el(2))+U_n(1:nl1-1,el(2)))*elem_area(el(2))/ff2
    wu(nl1+1)=0.0_WP
-
+  
    wv(1)=V_n(1,el(2))*elem_area(el(2))/ff2
    wv(2:nl1)=0.5_WP*(V_n(2:nl1,el(2))+V_n(1:nl1-1,el(2)))*elem_area(el(2))/ff2
    wv(nl1+1)=0.0_WP
-
+  
    wuw(1:nl1+1)=wu*Wvel(1:nl1+1,nodes(1))
    wvw(1:nl1+1)=wv*Wvel(1:nl1+1,nodes(1))
    DO nz=1,nl1
@@ -911,7 +988,7 @@ integer                :: elnodes_1(4), elnodes_2(4)
    Vnode_rhs(nz,nodes(1))=Vnode_rhs(nz,nodes(1))-(wvw(nz)-wvw(nz+1))/ &
     (zbar(nz+1,nodes(1))-zbar(nz,nodes(1)))/area(nodes(1))
    END DO
-
+  
    wuw(1:nl1+1)=wu*Wvel(1:nl1+1,nodes(2))
    wvw(1:nl1+1)=wv*Wvel(1:nl1+1,nodes(2))
    DO nz=1,nl1
@@ -922,7 +999,7 @@ integer                :: elnodes_1(4), elnodes_2(4)
    END DO
    end if
  END DO
-
+ 
  endif
 
 DO elem=1, elem2D

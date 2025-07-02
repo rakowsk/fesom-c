@@ -7,7 +7,7 @@ SUBROUTINE test_elem
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! Check the order of nodes in elements; correct it if necessary to make
-  ! it same sense (clockwise)
+  ! it same sense (clockwise) 
   ! Requirement: vertices of an element should be listed so that they
   ! form a full circle (trivial for triangles)
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -16,11 +16,14 @@ SUBROUTINE test_elem
   integer             ::  n, nx, elnodes(4)
   real(kind=WP)   :: t0, t1 ! to measure time if desired in MPI
 
+ CHARACTER(len=100)          :: file_name
+
+
   DO n=1, myDim_elem2D
 
      elnodes=elem2D_nodes(:,n)
 
-     if(elnodes(1)==elnodes(4)) then	! the case of triangle
+     if(elnodes(1)==elnodes(4)) then	! the case of triangle  
 
         a=coord_nod2D(:,elnodes(1))
         b=coord_nod2D(:,elnodes(2))-a
@@ -35,13 +38,13 @@ SUBROUTINE test_elem
         if (r>0.0_WP) then
            ! Vector b is to right of c
            ! Exchange second and third nodes:
-           write(*,*) 'Vertices exchanged for triangle ', n
+           write(*,*) 'AAA', 'Vertices exchanged for triangle ', n
            nx=elnodes(2)
            elnodes(2)=elnodes(3)
            elnodes(3)=nx
            elem2D_nodes(:,n)=elnodes
         end if
-
+      
      else                             ! the case of a quadrilateral
 
         a=coord_nod2D(:,elnodes(1))
@@ -59,8 +62,8 @@ SUBROUTINE test_elem
 
         r=b(1)*c(2)-b(2)*c(1)
         r1=b(1)*d(2)-b(2)*d(1)
-        if(r1*r<0.0_WP) then            ! b is to right of one, and to left of
-                                        ! the other one.
+        if(r1*r<0.0_WP) then            ! b is to right of one, and to left of 
+                                        ! the other one. 
 
            write(*,*) 'Node list problem ', n
            stop
@@ -68,7 +71,7 @@ SUBROUTINE test_elem
            if(r>0) then ! vector b is to right of c (and of d)
                         ! wrong rotation sense. We need to replace
                         ! b and d:
-              write(*,*) 'Vertices exchanged for quad ', n
+        !aa67      write(*,*) 'Vertices exchanged for quad ', n
               nx=elnodes(2)
               elnodes(2)=elnodes(4)
               elnodes(4)=nx
@@ -78,7 +81,7 @@ SUBROUTINE test_elem
      end if
   END DO
 
-
+ 
 END SUBROUTINE  test_elem
 
 !=========================================================================
@@ -95,7 +98,7 @@ SUBROUTINE load_edges
   integer                               :: counter, n, m, nn, k, q, fileID, q1
   integer                               :: elems(2), elem
   integer                               :: elnodes(4), ed(2), eledges(4), iaux4(4)
-  integer, allocatable                  :: aux(:)
+  integer, allocatable                  :: aux(:)         
   real(kind=WP)                         :: t0, t1
   integer                               :: nchunk, chunk_size, ipos, iofs, mesh_check
   integer, allocatable, dimension(:)    :: mapping
@@ -106,13 +109,13 @@ SUBROUTINE load_edges
 
   !==============================
   ! Edge array is already available (we computed it in the init phase)
-  ! (a) Read list of edges and tri containing them from file
+  ! (a) Read list of edges and tri containing them from file 
   !==============================
   !mesh related files will be read in chunks of chunk_size
   chunk_size=100000
   !==============================
   ! Allocate mapping array (chunk_size)
-  ! It will be used for several purposes
+  ! It will be used for several purposes 
   !==============================
   allocate(mapping(chunk_size))
   allocate(ibuff(4,chunk_size))
@@ -170,7 +173,7 @@ SUBROUTINE load_edges
      !    call MPI_BCast(ibuff(1:k,3), k, MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
      !    call MPI_BCast(ibuff(1:k,4), k, MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
      ! fill the local arrays
-     do n=1, k
+     do n=1, k      
         if (mapping(n)>0) then
            mesh_check=mesh_check+1
            edge_nodes   (:, mapping(n))=ibuff(1:2,n)
@@ -187,7 +190,7 @@ SUBROUTINE load_edges
      stop
   end if
 
-  if (mype==0) then
+  if (mype==0) then 
      close(fileID)
      close(fileID+1)
   end if
@@ -214,7 +217,7 @@ SUBROUTINE load_edges
               iofs=nn-nchunk*chunk_size
               ! minus sign is required to avoid modified entry being modified in another chunk
               ! will be changed to plus at the end
-              edge_nodes(m,n)=-mapping(iofs)
+              edge_nodes(m,n)=-mapping(iofs) 
            end if
         end do
      end do
@@ -256,7 +259,7 @@ SUBROUTINE load_edges
               iofs=nn-nchunk*chunk_size
               ! minus sign is required to avoid modified entry being modified in another chunk
               ! will be changed to plus at the end
-              edge_tri(m,n)=-mapping(iofs)
+              edge_tri(m,n)=-mapping(iofs) 
            end if
         end do
      end do
@@ -278,11 +281,11 @@ SUBROUTINE load_edges
   ! =========
 
 
-  ! Now the only way to check whether an edge is on boundary is
+  ! Now the only way to check whether an edge is on boundary is 
   ! through myList_edge2D(n):  myList_edge2D(n)>edge2D_in == boundary edge
 
   ! (b) We need an array inverse to edge_tri listing edges
-  ! of a given element (quad/triangle)
+  ! of a given element (quad/triangle) 
   allocate(elem_edges(4,myDim_elem2D))
   elem_edges(:,:)=0
 
@@ -300,18 +303,18 @@ SUBROUTINE load_edges
   deallocate(aux)
 
 if (mype==0) then
-! print *,'PE=0 - myDim_elem2D,eDim_elem2D',myDim_elem2D,eDim_elem2D
+ print *,'PE=0 - myDim_elem2D,eDim_elem2D',myDim_elem2D,eDim_elem2D
  !do n=1,myDim_elem2D
  ! print *,n,elem_edges(:,n)
  !end do
-! print *,'========================'
-! print *,elem_edges(:,16)
-! print *,elem2D_nodes(:,16)
-! print *,edge_nodes(:,elem_edges(1,16))
-! print *,edge_nodes(:,elem_edges(2,16))
-! print *,edge_nodes(:,elem_edges(3,16))
-! print *,edge_nodes(:,elem_edges(4,16))
-
+ print *,'========================'
+ print *,elem_edges(:,16)
+ print *,elem2D_nodes(:,16)
+ print *,edge_nodes(:,elem_edges(1,16))
+ print *,edge_nodes(:,elem_edges(2,16))
+ print *,edge_nodes(:,elem_edges(3,16))
+ print *,edge_nodes(:,elem_edges(4,16))
+ 
 end if
 
 
@@ -374,11 +377,11 @@ end if
   deallocate(mapping)
 
 if (mype==0) then
- !print *,myDim_elem2D,eDim_elem2D
+ print *,myDim_elem2D,eDim_elem2D
  !do n=1,myDim_elem2D
  ! print *,n,elem_edges(:,n)
  !end do
-
+ 
 end if
 
 
@@ -402,22 +405,22 @@ SUBROUTINE find_edges
   integer                               :: counter, counter_in, n, k, q
   integer                               :: elem, elem1, elems(2), q1, q2
   integer                               :: elnodes(4), ed(2),flag, eledges(4)
-  integer                               :: temp(100), node
+  integer                               :: temp(100), node 
   real(kind=WP)                    :: xc(2), xe(2), ax(3), amin
 
   ! ====================
-  ! (a) find edges. To make the procedure fast
+  ! (a) find edges. To make the procedure fast 
   ! one needs neighbourhood arrays
   ! ====================
 
   allocate(ne_num(nod2d))
   ne_num=0
-  DO n=1,elem2D
+  DO n=1,elem2D         
      elnodes=elem2D_nodes(:,n)
      if(elnodes(1)==elnodes(4)) then
         ne_num(elnodes(1:3))=ne_num(elnodes(1:3))+1
      else
-        ne_num(elnodes)=ne_num(elnodes)+1
+        ne_num(elnodes)=ne_num(elnodes)+1 
      end if
   END DO
   k=maxval(ne_num)               ! maximum number of neighbour elements
@@ -428,16 +431,16 @@ SUBROUTINE find_edges
      elnodes=elem2D_nodes(:,n)
      q1=4
      if(elnodes(1)==elnodes(4)) q1=3
-     DO q=1,q1
+     DO q=1,q1         
         ne_num(elnodes(q))=ne_num(elnodes(q))+1
         ne_pos(ne_num(elnodes(q)),elnodes(q))=n
      END DO
-  END DO			        ! neighbor elements are found
+  END DO			        ! neighbor elements are found 
 
   ! count neighbour nodes
-  ! In quads we should count the nodes that are
+  ! In quads we should count the nodes that are 
   ! connected by edges!
-  allocate(aux1(nod2D))
+  allocate(aux1(nod2D))				     
   aux1=0
 
   DO n=1, nod2D
@@ -448,7 +451,7 @@ SUBROUTINE find_edges
 
         if(elnodes(1)==elnodes(4)) then
            DO q=1,3
-              if(elnodes(q)==n) CYCLE
+              if(elnodes(q)==n) CYCLE 
               if(aux1(elnodes(q)).ne.1) then
                  counter=counter+1
                  aux1(elnodes(q))=1
@@ -482,7 +485,7 @@ SUBROUTINE find_edges
            END DO
         end if
      END DO
-     nn_num(n)=counter
+     nn_num(n)=counter         
      aux1(temp(1:counter))=0
   END DO
   deallocate(aux1)
@@ -497,9 +500,9 @@ SUBROUTINE find_edges
         elem=ne_pos(k,n)
         elnodes=elem2D_nodes(:,elem)
 
-        if(elnodes(1)==elnodes(4)) then
+        if(elnodes(1)==elnodes(4)) then 
            DO q=1,3
-              if(elnodes(q)==n) CYCLE
+              if(elnodes(q)==n) CYCLE 
               if(aux1(elnodes(q)).ne.1) then
                  counter=counter+1
                  aux1(elnodes(q))=1
@@ -540,19 +543,19 @@ SUBROUTINE find_edges
 
   END DO
   deallocate(aux1)
-  ! neighboring nodes are found. First in the list is the node itself
+  ! neighboring nodes are found. First in the list is the node itself 
 
   ! ====================
   ! (b) Find edges and elements containing them.
   ! ====================
   counter=0
-  ! Count edges:
+  ! Count edges: 
   DO n=1,nod2D
-     ! ====================
+     ! ==================== 
      ! form edges with n by cycling over neighboring
-     ! nodes (if edges are not accounted yet).
-     ! New edges are added only if neighbor>n
-     ! ====================
+     ! nodes (if edges are not accounted yet). 
+     ! New edges are added only if neighbor>n  
+     ! ====================	  
      DO q=2,nn_num(n)
         node=nn_pos(q,n)
         if(node<n) CYCLE
@@ -563,7 +566,7 @@ SUBROUTINE find_edges
 
   allocate(edge_nodes(2,counter), edge_tri(2, counter))
   counter=0
-  counter_in=0
+  counter_in=0 
   DO n=1,nod2D
      DO q=2,nn_num(n)
         node=nn_pos(q,n)
@@ -594,7 +597,7 @@ SUBROUTINE find_edges
   END DO
   edge2D_in=counter_in
 
-  ! Repeate to collect boundary edges:
+  ! Repeate to collect boundary edges:   
   counter=0
   DO n=1,nod2D
      DO q=2,nn_num(n)
@@ -631,9 +634,9 @@ SUBROUTINE find_edges
 
   ! ====================
   ! (d) the list of elements on both sides of edge e, edge_tri(:,e)
-  ! should be ordered so that the first is the element which is to the left of
-  ! the edge (vector pointing from the first to the second node of the edge.
-  ! If the edge is on the boundary, there is only the first element.
+  ! should be ordered so that the first is the element which is to the left of 
+  ! the edge (vector pointing from the first to the second node of the edge. 
+  ! If the edge is on the boundary, there is only the first element.  
   ! ====================
 
   DO n=1, edge2D
@@ -666,7 +669,7 @@ SUBROUTINE find_edges
 
   ! ====================
   ! (e) We need an array inverse to edge_tri listing edges
-  ! of a given element
+  ! of a given element 
   ! ====================
   allocate(elem_edges(4,elem2D))
   elem_edges=0
@@ -714,16 +717,16 @@ SUBROUTINE find_edges
      END DO
      if(q1==3) elem_edges(4,elem)=elem_edges(1,elem)
   END DO
-
+  
 END SUBROUTINE find_edges
 !===================================================================
 subroutine edge_center(n1, n2, x, y)
 
   USE o_MESH
-  USE o_PARAM
+  USE o_PARAM 
 
   ! Returns coordinates of edge center in x and y
-
+ 
   implicit none
 
   integer       :: n1, n2   ! nodes of the edge
@@ -744,17 +747,17 @@ subroutine elem_center(elem, x, y, s)
   ! Returns coordinates of elem center in x and y
 
   USE o_MESH
-  USE o_PARAM
+  USE o_PARAM 
 
   implicit none
 
-  integer       :: elem, elnodes(4), k
+  integer       :: elem, elnodes(4), k    
   real(kind=WP)  :: x, y, x1, y1, s1, s2, ax(4), ay(4),  amin, s
 
   elnodes=elem2D_nodes(:,elem)
 
   if (any(elnodes==0)) then
-!     print *,elem,elnodes(:)
+     print *,elem,elnodes(:)
   end if
 
   if(elnodes(1)==elnodes(4)) then
@@ -778,9 +781,9 @@ subroutine elem_center(elem, x, y, s)
      y=ay(1)+ay(3)+ay(4)
      x1=ax(1)+ax(2)+ax(3)
      y1=ay(1)+ay(2)+ay(3)
-     ! areas
-     s1=abs((ax(3)-ax(4))*(ay(1)-ay(4))-(ay(3)-ay(4))*(ax(1)-ax(4)))
-     s2=abs((ax(3)-ax(2))*(ay(1)-ay(2))-(ay(3)-ay(2))*(ax(1)-ax(2)))
+     ! areas 
+     s1=abs((ax(3)-ax(4))*(ay(1)-ay(4))-(ay(3)-ay(4))*(ax(1)-ax(4))) 
+     s2=abs((ax(3)-ax(2))*(ay(1)-ay(2))-(ay(3)-ay(2))*(ax(1)-ax(2))) 
      x=(x*s1+x1*s2)/3.0_WP/(s1+s2)
      y=(y*s1+y1*s2)/3.0_WP/(s1+s2)
      s=0.5_WP*(s1+s2)
@@ -804,7 +807,7 @@ SUBROUTINE find_elem_neighbors
 
 
 #ifdef USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_FESOM_C, MPIerr)
+  CALL MPI_BARRIER(MPI_COMM_FESOM_C, MPIerr) 
 #endif
 
   allocate(elem_neighbors(4,myDim_elem2D))
@@ -835,10 +838,10 @@ SUBROUTINE find_elem_neighbors
   ! =============
   ! Node neighbourhood
   ! == elements that contain node n
-  ! We need eDim neighborhood too for MUSCL advection.
-  ! And we already have the place allocated for all
+  ! We need eDim neighborhood too for MUSCL advection. 
+  ! And we already have the place allocated for all 
   ! these neighbor elements: it is eDim_elem2D+eXDim_elem2D
-  ! =============
+  ! =============	 
 
   allocate(nod_in_elem2D_num(myDim_nod2D+eDim_nod2D))
   nod_in_elem2D_num=0
@@ -873,9 +876,9 @@ SUBROUTINE find_elem_neighbors
 
   nod_in_elem2D=0
   nod_in_elem2D_num=0
-  do el=1,myDim_elem2D
+  do el=1,myDim_elem2D 
      q=4
-     if ( elem2D_nodes(1,el) == elem2D_nodes(4,el)) q=3  ! triangle
+     if ( elem2D_nodes(1,el) == elem2D_nodes(4,el)) q=3  ! triangle  
      do j=1,q
         nd=elem2D_nodes(j,el)
         nod_in_elem2D_num(nd)=nod_in_elem2D_num(nd)+1
@@ -904,7 +907,7 @@ SUBROUTINE find_elem_neighbors
   Do n=1, myDim_elem2D+eDim_elem2D+eXDim_elem2D
      temp_i(myList_elem2D(n))=n
   END DO
-  DO n=1, myDim_nod2D+eDim_nod2D
+  DO n=1, myDim_nod2D+eDim_nod2D     
      DO j=1, nod_in_elem2D_num(n)
         nod_in_elem2D(j,n)=temp_i(nod_in_elem2D(j,n))
      END DO
@@ -912,17 +915,17 @@ SUBROUTINE find_elem_neighbors
 
   deallocate(temp_i)
 
-  ! Among elem_neighbors there can be negative numbers. These correspond to
-  ! boundary elements for which neighbours are absent. However, an element
-  ! should have at least two valid neighbors, otherwise least square
+  ! Among elem_neighbors there can be negative numbers. These correspond to 
+  ! boundary elements for which neighbours are absent. However, an element 
+  ! should have at least two valid neighbors, otherwise least square 
   ! interpolation for velocities will not work properly.
 
-  ! The rotation sense: corresponds to edges, and edges correspond
+  ! The rotation sense: corresponds to edges, and edges correspond 
   ! to nodes
 
   ! ============
   ! Test that there are at least two neighbors at the surface:
-  ! ============
+  ! ============ 
 
   DO elem=1,myDim_elem2D
      elem1=0
@@ -968,18 +971,12 @@ SUBROUTINE mesh_arrays1
   real(kind=WP)  :: min_area, max_area, min_scarea, max_scarea, min_w, max_w
 
   allocate(elem_area(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
-  allocate(area(myDim_nod2D+eDim_nod2D))
+  allocate(area(myDim_nod2D+eDim_nod2D)) 
   allocate(metric_factor(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
   allocate(elem_cos(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
   allocate(coriolis(myDim_elem2D))
   allocate(w_cv(4,myDim_elem2D+eDim_elem2D+eXDim_elem2D))
 
-  elem_area = 0.0_WP
-  elem_cos = 0.0_WP
-  area = 0.0_WP
-  metric_factor = 0.0_WP
-  coriolis = 0.0_WP
-  w_cv = 0.0_WP
   ! ============
   ! The areas of elements:
   ! Coriolis
@@ -991,7 +988,7 @@ SUBROUTINE mesh_arrays1
      !call r2g(lon, lat, ax, ay)   ! reserved for rotated meshes, see 3D model
      coriolis(elem)=2.0_WP*omega*sin(ay)
      elem_cos(elem)=cos(ay)
-     metric_factor(elem)=tan(ay)/r_earth
+     metric_factor(elem)=tan(ay)/r_earth 
      elem_area(elem)=aa
   END DO
 
@@ -1006,7 +1003,7 @@ SUBROUTINE mesh_arrays1
         coriolis(:)=2.0_WP*omega*sin(lat_cartesian)
         !coriolis=2.0_WP*omega*0.71_WP
      endif
-!     write(*,*) 'Coriolis max, min:',maxval(coriolis), minval(coriolis)
+   !aa67  write(*,*) 'Coriolis max, min:',maxval(coriolis), minval(coriolis)
   else
      coriolis=0.0_WP
   endif
@@ -1048,7 +1045,7 @@ SUBROUTINE mesh_arrays1
         call elem_center(elem, rc(1), rc(2), aa)
         elnodes(1)=elnodes(5)
         elnodes(6)=elnodes(2)
-
+        
         DO j=2,5
            r1=coord_nod2D(:,elnodes(j-1))
            r0=coord_nod2D(:,elnodes(j))
@@ -1060,12 +1057,14 @@ SUBROUTINE mesh_arrays1
                 abs(rl(1)*r0(2)-rl(2)*r0(1))+abs(rr(1)*r0(2)-rr(2)*r0(1)))
            w_cv(j-1,elem) = 0.25_WP*elem_cos(elem)*( &
                 abs(rl(1)*r0(2)-rl(2)*r0(1))+abs(rr(1)*r0(2)-rr(2)*r0(1)))/elem_area(elem)
-!           if(mype==0 .AND. elem==1) write(*,*) 'Elem 1 vectors x, node ',j-1
-!           if(mype==0 .AND. elem==1) write(*,*) rr(1), rl(1), rc(1)
-!           if(mype==0 .AND. elem==1) write(*,*) rr(2), rl(2), rc(2)
+           if(mype==0 .AND. elem==1) write(*,*) 'Elem 1 vectors x, node ',j-1
+           if(mype==0 .AND. elem==1) write(*,*) rr(1), rl(1), rc(1)
+           if(mype==0 .AND. elem==1) write(*,*) rr(2), rl(2), rc(2)
         END DO
      end if
+
   END DO
+
   ! ===========
   ! Update to proper dimension
   ! ===========
@@ -1122,7 +1121,7 @@ SUBROUTINE mesh_arrays1
      write(*,*) 'Mesh statistics:'
      write(*,*) 'maxArea ',max_area, '   MinArea ', min_area
      write(*,*) 'maxScArea ',max_scarea, '   MinScArea ', min_scarea
-     write(*,*) 'Edges:    ', edge2D, ' internal ', edge2D_in
+     write(*,*) 'Edges:    ', edge2D, ' internal ', edge2D_in	  
   end if
 
 #else
@@ -1131,7 +1130,7 @@ SUBROUTINE mesh_arrays1
   write(*,*) 'Mesh statistics:'
   write(*,*) 'maxArea ',maxval(elem_area), '   MinArea ', minval(elem_area)
   write(*,*) 'maxScArea ',maxval(area(:)), '   MinScArea ', minval(area(:))
-  write(*,*)   'Edges:    ', edge2D, ' internal ', edge2D_in
+  write(*,*)   'Edges:    ', edge2D, ' internal ', edge2D_in	  
 
 #endif
 
@@ -1154,8 +1153,8 @@ end subroutine cdiff
 
 SUBROUTINE mesh_arrays2
 
-  ! Collects auxiliary information needed to speed up computations
-  ! of gradients, div. This also makes implementation of cyclicity
+  ! Collects auxiliary information needed to speed up computations 
+  ! of gradients, div. This also makes implementation of cyclicity 
   ! much more straightforward
   ! Allocated and filled in are:
   ! edge_dxdy(2,edge2D)
@@ -1178,9 +1177,9 @@ SUBROUTINE mesh_arrays2
   real(kind=WP)	     :: a(2), b(2), ax, ay, dfactor, lon, lat
   real(kind=WP)	     :: deltaX31, deltaX21, deltaY31, deltaY21
   real(kind=WP)         :: x(4), y(4), cxx, cxy, cyy, d
-  real(kind=WP), allocatable :: center_x(:), center_y(:), temp(:)
+  real(kind=WP), allocatable :: center_x(:), center_y(:), temp(:) 
 
-
+ 
   allocate(edge_dxdy(2,myDim_edge2D+eDim_edge2D))        !SH If fields must have this size, check below
   allocate(edge_cross_dxdy(4,myDim_edge2D+eDim_edge2D))  !SH elem_center only valid for myDim_elem2d (NOT +eDim_elem2D)
   !allocate(edge_dxdy(2,myDim_edge2D))
@@ -1189,7 +1188,7 @@ SUBROUTINE mesh_arrays2
   allocate(gradient_vec(8,myDim_elem2D))
 
   allocate(center_x(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
-  allocate(center_y(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
+  allocate(center_y(myDim_elem2D+eDim_elem2D+eXDim_elem2D)) 
 
 
   ! Fill auxiliary arrays center_x and center_y
@@ -1202,7 +1201,7 @@ SUBROUTINE mesh_arrays2
 
 #ifdef USE_MPI
   call exchange_elem(center_x)
-  call exchange_elem(center_y)
+  call exchange_elem(center_y) 
 #endif
 
 !if (mype==1) then
@@ -1212,9 +1211,9 @@ SUBROUTINE mesh_arrays2
 !end if
 
 
-!print *,'CENTERX',mype,minval(center_x(:)),maxval(center_x(:))
-!print *,'CENTERY',mype,minval(center_y(:)),maxval(center_y(:))
-
+!aa67 print *,'CENTERX',mype,minval(center_x(:)),maxval(center_x(:))
+!aa67 print *,'CENTERY',mype,minval(center_y(:)),maxval(center_y(:))
+  
   ! ===========
   ! Distances along the edge
   ! We need them in radian measure!
@@ -1234,7 +1233,7 @@ SUBROUTINE mesh_arrays2
   ! ===========
 
   DO edg=1, myDim_edge2D+eDim_edge2D
-
+     
      ed=edge_nodes(:,edg)
      el=edge_tri(:,edg)
 
@@ -1252,7 +1251,7 @@ SUBROUTINE mesh_arrays2
      edge_cross_dxdy(1:2,edg)=b(1:2)
 
      if(el(2)>0) then
-        b(1)=center_x(el(2))
+        b(1)=center_x(el(2)) 
         b(2)=center_y(el(2))
         b=b-a
 
@@ -1268,10 +1267,10 @@ SUBROUTINE mesh_arrays2
 
   END DO
 
-!print *,'EDGECR1',mype,minval(edge_cross_dxdy(1,:)),maxval(edge_cross_dxdy(1,:))
-!print *,'EDGECR2',mype,minval(edge_cross_dxdy(2,:)),maxval(edge_cross_dxdy(2,:))
-!print *,'EDGECR3',mype,minval(edge_cross_dxdy(3,:)),maxval(edge_cross_dxdy(3,:))
-!print *,'EDGECR4',mype,minval(edge_cross_dxdy(4,:)),maxval(edge_cross_dxdy(4,:))
+!aa67 print *,'EDGECR1',mype,minval(edge_cross_dxdy(1,:)),maxval(edge_cross_dxdy(1,:))
+!aa67 print *,'EDGECR2',mype,minval(edge_cross_dxdy(2,:)),maxval(edge_cross_dxdy(2,:))
+!aa67 print *,'EDGECR3',mype,minval(edge_cross_dxdy(3,:)),maxval(edge_cross_dxdy(3,:))
+!aa67 print *,'EDGECR4',mype,minval(edge_cross_dxdy(4,:)),maxval(edge_cross_dxdy(4,:))
 
   ! ==========================
   ! Derivatives of scalar quantities
@@ -1310,13 +1309,13 @@ SUBROUTINE mesh_arrays2
         enodes(6)=enodes(2)
         dfactor=0.5_WP*r_earth/elem_area(elem)
         gradient_sca(:,elem)=0.0_WP
-        DO j=2,5    ! Nodes are listed clockwise n=(-dy, dx)
+        DO j=2,5    ! Nodes are listed clockwise n=(-dy, dx) 
            x1=coord_nod2D(:,enodes(j))
            x2=coord_nod2D(:,enodes(j-1))
            call cdiff(x1,x2,xd)           ! xd=(j)-(j-1)
            x2=coord_nod2D(:,enodes(j+1))
            call cdiff(x2,x1,x2)           ! x2=(j+1)-(j)
-           xd=(xd+x2)
+           xd=(xd+x2)       
            xd(1)=xd(1)*elem_cos(elem)
            gradient_sca(j-1,elem)=-xd(2)*dfactor
            gradient_sca(j-1+4,elem)=xd(1)*dfactor
@@ -1378,11 +1377,7 @@ SUBROUTINE mesh_arrays2
   deallocate(center_y, center_x)
 
   if (mype==0) print *,'SUBROUTINE mesh_arrays2: COMPLETED'
-
-
-!print *,'YIPPEE',mype,minval(gradient_vec(1,:)),maxval(gradient_vec(1,:))
-!print *,'YIPPEEsca',mype,minval(gradient_sca(1,:)),maxval(gradient_sca(1,:))
-
+  
 END SUBROUTINE mesh_arrays2
 
 ! ==================================================================
@@ -1392,7 +1387,7 @@ SUBROUTINE find_up_downwind_triangles
   USE o_MESH
   USE o_ARRAYS
   USE o_PARAM
-
+  
   USE g_PARSUP
   use g_comm_auto
 
@@ -1407,11 +1402,11 @@ SUBROUTINE find_up_downwind_triangles
   edge_up_dn_tri=0
   ! edge_up_dn_grad not used here, allocated only when type_task>1 and initialized with 0,
   ! in case of type_task=1 this will give error!!!!
-  ! edge_up_dn_grad=0.0_WP
+  ! edge_up_dn_grad=0.0_WP 
 
   ! =====
-  ! In order that this procedure works, we need to know nodes and their coordinates
-  ! on the extended set of elements (not only my, but myDim+eDim+eXDim)
+  ! In order that this procedure works, we need to know nodes and their coordinates 
+  ! on the extended set of elements (not only my, but myDim+eDim+eXDim) 
   ! =====
 
   allocate(coord_elem(2,4,myDim_elem2D+eDim_elem2D+eXDim_elem2D))
@@ -1431,7 +1426,7 @@ SUBROUTINE find_up_downwind_triangles
 
 #ifndef USE_MPI
   allocate(myList_nod2D(nod2D))
-  counter=0
+  counter=0   
   do n=1, nod2D
      counter=counter+1
      myList_nod2D(counter)=n
@@ -1465,16 +1460,16 @@ SUBROUTINE find_up_downwind_triangles
   END DO
 
   deallocate(temp_i)
-  !Write(*,*) mype, 'XX', maxval(e_nodes), minval(e_nodes)
+  !Write(*,*) mype, 'XX', maxval(e_nodes), minval(e_nodes) 
 
   DO n=1,myDim_edge2D
-     ednodes=edge_nodes(:,n)
+     ednodes=edge_nodes(:,n) 
      x=coord_nod2D(:,ednodes(2))-coord_nod2D(:,ednodes(1))
 
      if(x(1)>cyclic_length/2.0_WP)  x(1)=x(1)-cyclic_length
      if(x(1)<-cyclic_length/2.0_WP) x(1)=x(1)+cyclic_length
 
-     ! Find upwind (in the sense of x) triangle, i. e.
+     ! Find upwind (in the sense of x) triangle, i. e. 
      ! find which triangle contains -x:
 
      x=-x
@@ -1488,7 +1483,7 @@ SUBROUTINE find_up_downwind_triangles
            elseif(e_nodes(2,elem)==myList_nod2D(ednodes(1))) then
               b=coord_elem(:,1,elem)-coord_elem(:,2,elem)
               c=coord_elem(:,3,elem)-coord_elem(:,2,elem)
-           else
+           else	 
               b=coord_elem(:,1,elem)-coord_elem(:,3,elem)
               c=coord_elem(:,2,elem)-coord_elem(:,3,elem)
            end if
@@ -1502,7 +1497,7 @@ SUBROUTINE find_up_downwind_triangles
            elseif(e_nodes(3,elem)==myList_nod2D(ednodes(1))) then
               b=coord_elem(:,4,elem)-coord_elem(:,3,elem)
               c=coord_elem(:,2,elem)-coord_elem(:,3,elem)
-           else
+           else	 
               b=coord_elem(:,1,elem)-coord_elem(:,4,elem)
               c=coord_elem(:,3,elem)-coord_elem(:,4,elem)
            end if
@@ -1515,17 +1510,13 @@ SUBROUTINE find_up_downwind_triangles
         ! Decompose b and x into parts along c and along (-cy,cx), i.e.
         ! 90 degree counterclockwise
         cr=sum(c*c)
-        if (cr==0.0_WP) then
-            write(*,*) "mype=",mype," fv_mesh_array, find_up_downwind_triangles: cr=0 at elem",elem," coord.:",coord_elem(:,:,elem)
-            write(*,*) "mype=",mype,"myDim_elem2D = ",myDim_elem2D,eDim_elem2D,eXDim_elem2D
-        end if
         bx=sum(b*c)/cr
         by=(-b(1)*c(2)+b(2)*c(1))/cr
         xx=sum(x*c)/cr
         xy=(-x(1)*c(2)+x(2)*c(1))/cr
         ab=atan2(by,bx)
         ax=atan2(xy,xx)
-        ! Since b and c are the sides of triangle, |ab|<pi, and atan2 should
+        ! Since b and c are the sides of triangle, |ab|<pi, and atan2 should 
         ! be what is needed
         if((ab>0).and.(ax>0).and.(ax<ab)) then
            edge_up_dn_tri(1,n)=elem
@@ -1553,7 +1544,7 @@ SUBROUTINE find_up_downwind_triangles
            elseif(e_nodes(2, elem)==myList_nod2D(ednodes(2))) then
               b=coord_elem(:,1,elem)-coord_elem(:,2,elem)
               c=coord_elem(:,3,elem)-coord_elem(:,2,elem)
-           else
+           else	 
               b=coord_elem(:,1,elem)-coord_elem(:,3,elem)
               c=coord_elem(:,2,elem)-coord_elem(:,3,elem)
            end if
@@ -1567,7 +1558,7 @@ SUBROUTINE find_up_downwind_triangles
            elseif(e_nodes(3,elem)==myList_nod2D(ednodes(2))) then
               b=coord_elem(:,4,elem)-coord_elem(:,3,elem)
               c=coord_elem(:,2,elem)-coord_elem(:,3,elem)
-           else
+           else	 
               b=coord_elem(:,1,elem)-coord_elem(:,4,elem)
               c=coord_elem(:,3,elem)-coord_elem(:,4,elem)
            end if
@@ -1586,7 +1577,7 @@ SUBROUTINE find_up_downwind_triangles
         xy=(-x(1)*c(2)+x(2)*c(1))/cr
         ab=atan2(by,bx)
         ax=atan2(xy,xx)
-        ! Since b and c are the sides of triangle, |ab|<pi, and atan2 should
+        ! Since b and c are the sides of triangle, |ab|<pi, and atan2 should 
         ! be what is needed
         if((ab>0).and.(ax>0).and.(ax<ab)) then
            edge_up_dn_tri(2,n)=elem
@@ -1603,9 +1594,9 @@ SUBROUTINE find_up_downwind_triangles
      END DO
   END DO
 
-  ! There is problem with edges close to boundary --- they may be lacking
+  ! There is problem with edges close to boundary --- they may be lacking  
   ! up or downwind elements. We have to return to the standard Miura at nodes that
-  ! belong to such edges. Same issue is occurring at the depth.
+  ! belong to such edges. Same issue is occurring at the depth. 
 
   deallocate(e_nodes, coord_elem, eltp)
 

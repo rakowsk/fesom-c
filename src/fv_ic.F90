@@ -4,11 +4,12 @@ MODULE fv_ic
    !! Initial conditions:
    !!===========================================================================
    !! History: 0.1 ! 03/2016 I. Kuznetsov
-   !!          1.01! 08/2020 I. Kuznetsov
-   !!                              MPI version, based on netcdf libs
+   
    !! Description:
    !!   read and interpolate initial conditions (T and S) on model grid,
-   !!     or use constants from namelist        
+   !!     or use constants from namelist 
+   !!   
+   !!           
    !!       
    !! public: 
    !!   ic_do   -- provide a sbc (surface boundary conditions) each time step
@@ -17,8 +18,7 @@ MODULE fv_ic
    USE o_MESH
    USE o_PARAM
    
-   USE g_parsup
-
+!   USE ncar_ocean_fluxes_mode
    
    IMPLICIT NONE
 
@@ -52,7 +52,7 @@ MODULE fv_ic
 
    real(wp), allocatable, save, dimension(:,:,:) :: icdata ! IC data   
 !============== NETCDF ==========================================
-   integer :: i_totfl = 2 ! total number of fluxes
+   integer, parameter :: i_totfl = 2 ! total number of fluxes
    integer, parameter :: i_temp = 1 ! index of tempearature [degC]
    integer, parameter :: i_salt = 2 ! index of salinity
    
@@ -62,7 +62,7 @@ MODULE fv_ic
       character(len = 34)  :: var_name  ! variable name in the NetCDF file
    end type flfi_type     
  
-  type(flfi_type), allocatable, save, dimension(:) :: ic_flfi  !array for information about flux files
+  type(flfi_type),save, dimension(i_totfl) :: ic_flfi  !array for information about flux files
 
   ! arrays of time, lon and lat in INfiles
    real(wp), allocatable, save, dimension(:)  :: nc_lon
@@ -75,10 +75,6 @@ MODULE fv_ic
    integer,save              :: nc_Ndepth   
 
 !============== NETCDF ==========================================   
-
-!========== MPI============================================
-  integer            :: node_size, elem_size   ! number of nodes and elements on current PE (all one)
-
 CONTAINS
    SUBROUTINE nc_readTimeGrid(flf)
    ! Read time array and grid from nc file
@@ -103,7 +99,6 @@ CONTAINS
       integer              :: sbc_alloc                   !: allocation status
       
 
-      if (mype==0) then
     
       !open file
       iost = nf_open(flf%file_name,NF_NOWRITE,ncid)
@@ -134,19 +129,13 @@ CONTAINS
       call check_nferr(iost,flf%file_name)   
       iost = nf_inq_dimlen(ncid, id_depthd, nc_Ndepth)
       call check_nferr(iost,flf%file_name) 
-      endif
-#ifdef USE_MPI
-      call MPI_BCast(nc_Nlat, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_Nlon, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_Ndepth, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, MPIerr)
-#endif
+
       ALLOCATE( nc_lon(nc_Nlon), nc_lat(nc_Nlat),&
                 &       nc_depth(nc_Ndepth), &
 
                 &      STAT=sbc_alloc )  
       if( sbc_alloc /= 0 )   STOP 'ic:nc_readTimeGrid: failed to allocate arrays'   
          
-      if (mype==0) then
 
    !read variables from file
    ! coordinates
@@ -167,20 +156,14 @@ CONTAINS
 
       iost = nf_close(ncid)
       call check_nferr(iost,flf%file_name)
-      endif
-#ifdef USE_MPI
-      call MPI_BCast(nc_lat, nc_Nlat, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_lon, nc_Nlon, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-      call MPI_BCast(nc_depth, nc_Ndepth, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-#endif
    END SUBROUTINE nc_readTimeGrid
 
    
    SUBROUTINE nc_ic_ini
       !!---------------------------------------------------------------------
-      !!                    ***  ROUTINE nc_ic_ini ***
+      !!                    ***  ROUTINE ascii_ini ***
       !!              
-      !! ** Purpose : initialization of ocean initial conditions from NETCDF file
+      !! ** Purpose : inizialization of ocean forcing from NETCDF file
       !!----------------------------------------------------------------------
 
       IMPLICIT NONE
@@ -193,10 +176,10 @@ CONTAINS
       real(wp)           :: x, y       ! coordinates of elements
       
       warn = 0
-      ALLOCATE( icdata(i_totfl,nsigma-1,node_size), &
+      ALLOCATE( icdata(i_totfl,nsigma-1,nod2d), &
                    &      STAT=sbc_alloc )  
       if( sbc_alloc /= 0 )   STOP 'nc_ic_ini: failed to allocate arrays' 
-      ALLOCATE( ic_flfi(i_totfl), bilin_indx_i(node_size),bilin_indx_j(node_size), &
+      ALLOCATE( bilin_indx_i(nod2d),bilin_indx_j(nod2d), &
                    &      STAT=sbc_alloc )  
                    
       if( sbc_alloc /= 0 )   STOP 'nc_ic_ini: failed to allocate arrays' 
@@ -213,7 +196,7 @@ CONTAINS
       call nc_readTimeGrid(ic_flfi(i_temp))
 
       ! prepare nearest coordinates in INfile , save to bilin_indx_i/j
-      do i = 1, node_size
+      do i = 1, nod2D
 !         ! get coordinates of elements
          x  = coord_nod2d(1,i)/rad
          y  = coord_nod2d(2,i)/rad
@@ -239,8 +222,8 @@ CONTAINS
          end if
          if (warn == 0) then
             if (bilin_indx_i(i) < 1 .or. bilin_indx_j(i) < 1) then
-               if (mype==0)  WRITE(*,*) '     WARNING:  node/element coordinate out of initial conditions bounds,'
-               if (mype==0)  WRITE(*,*) '        nearest value will be used'
+               WRITE(*,*) '     WARNING:  node/element coordinate out of initial conditions bounds,'
+               WRITE(*,*) '        nearest value will be used'
                warn = 1
             end if   
          end if
@@ -258,7 +241,7 @@ CONTAINS
       !!---------------------------------------------------------------------
       !!                    ***  ROUTINE getcoeffld ***
       !!              
-      !! ** Purpose : read fields from files, interpolate on model mesh and prepare interpolation coefficients
+      !! ** Purpose : read fields from files, inetrpolate on model mesh and prepare interpolation coeffients 
       !! ** Method  : 
       !! ** Action  : 
       !!----------------------------------------------------------------------
@@ -290,9 +273,7 @@ CONTAINS
                 &      STAT=sbc_alloc )  
       if( sbc_alloc /= 0 )   STOP 'getcoeffld: failed to allocate arrays'   
 
-
       do fld_idx = 1, i_totfl
-         if (mype==0) then
          !open file sbc_flfi      
          iost = nf_open(ic_flfi(fld_idx)%file_name,NF_NOWRITE,ncid)
          call check_nferr(iost,ic_flfi(fld_idx)%file_name)
@@ -309,17 +290,10 @@ CONTAINS
          iost = nf_get_vara_double(ncid, id_data, nf_start, nf_edges, sbcdata1)
          call check_nferr(iost,ic_flfi(fld_idx)%file_name)
 
-             iost = nf_close(ncid)
-             call check_nferr(iost,ic_flfi(fld_idx)%file_name)
-         endif !mype==0
-#ifdef USE_MPI
-         call MPI_BCast(sbcdata1(1:nc_Nlon,1:nc_Nlat,1:nc_Ndepth), nc_Nlon*nc_Nlat*nc_Ndepth, &
-                          MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, MPIerr)
-#endif
 
          ! bilinear space interpolation,  
          ! data is assumed to be sampled on a regular grid
-         do ii = 1, node_size
+         do ii = 1, nod2D
             i = bilin_indx_i(ii)
             j = bilin_indx_j(ii)
             ip1 = i + 1            
@@ -392,7 +366,8 @@ CONTAINS
       
          end do !ii
 
-
+         iost = nf_close(ncid)
+         call check_nferr(iost,ic_flfi(fld_idx)%file_name)
          
       end do !fld_idx      
 
@@ -424,9 +399,9 @@ CONTAINS
       ! OPEN and read namelist for SBC
       open( unit=nm_ic_unit, file='namelist_bc.nml', form='formatted', access='sequential', status='old', iostat=iost )
       if( iost == 0 ) then
-         if (mype==0)  WRITE(*,*) '     file   : ', 'namelist_bc.nml',' open ok'
+         WRITE(*,*) '     file   : ', 'namelist_bc.nml',' open ok'
       else
-         WRITE(*,*) mype,'ERROR: --> bad opening file   : ', 'namelist_bc.nml',' ; iostat=',iost
+         WRITE(*,*) 'ERROR: --> bad opening file   : ', 'namelist_bc.nml',' ; iostat=',iost     
          STOP 'ERROR: --> ic_ini'
       endif
       READ( nm_ic_unit, nml=nam_ic, iostat=iost )
@@ -443,35 +418,30 @@ CONTAINS
       !! ** Action  : 
       !!----------------------------------------------------------------------
       IMPLICIT NONE
-!      integer            :: i
-
-      if (mype==0) write(*,*) "Start: Initial conditions."
-
-      node_size=myDim_nod2D+eDim_nod2D
-      elem_size=myDim_elem2D+eDim_elem2D+eXDim_elem2D
+      write(*,*) "Start: Initial conditions."
 
       call ic_ini ! read namelist
       
       if( nm_ic == -1 ) then
          ! IF module not in use
-         if (mype==0) write(*,*) "Initial conditions module is OFF."
-         if (mype==0) write(*,*) "DONE:  Initial conditions."
+         write(*,*) "Initial conditions module is OFF."      
+         write(*,*) "DONE:  Initial conditions."      
          return
       endif      
       if( nm_ic == 1 ) then
-         TF(:,:) = nm_ict
-         SF(:,:) = nm_ics
-         if (mype==0) write(*,*) "Initial conditions are constants.t=",nm_ict, "s=",nm_ics
+         TF(:,:) = nm_ict;
+         SF(:,:) = nm_ics;
+         write(*,*) "Initial conditions are constants."      
       endif     
       if( nm_ic == 2 ) then
          call nc_ic_ini     
-         ! get first coefficients for time interpolation on model grid for all data
+         ! get first coeficients for time inerpolation on model grid for all datas
          call getcoeffld
          TF(:,:) = icdata(i_temp,:,:)
          SF(:,:) = icdata(i_salt,:,:)
          call ic_end ! deallocate 
       endif  
-      if (mype==0) write(*,*) "DONE:  Initial conditions. mype=",mype
+      write(*,*) "DONE:  Initial conditions."      
    
    END SUBROUTINE ic_do   
 

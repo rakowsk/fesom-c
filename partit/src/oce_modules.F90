@@ -104,15 +104,19 @@ real(kind=WP)    :: coeff_limit_salinity=0.0023   !m/s, coefficient to restore s
 
  NAMELIST /oce_dyn/ C_d, A_ver, laplacian, A_hor, A_hor_max, Leith_c, tau_c, Div_c, Smag_c, &
                     biharmonic, Abh0, scale_area, mom_adv, free_slip, i_vert_visc, w_split, w_exp_max, &
-                    Fer_GM, K_GM, scaling_Ferreira, scaling_Rossby, scaling_resolution, scaling_FESOM14, Redi, visc_sh_limit, mix_scheme, Ricr, concv
- NAMELIST /oce_tra/ diff_sh_limit, Kv0_const, double_diffusion, K_ver, K_hor, surf_relax_T, surf_relax_S, balance_salt_water, clim_relax, &
-		    ref_sss_local, ref_sss, i_vert_diff, &
-		    tracer_adv
+                    Fer_GM, K_GM, scaling_Ferreira, scaling_Rossby, scaling_resolution, scaling_FESOM14, &
+                    Redi, visc_sh_limit, mix_scheme, Ricr, concv
+
+ NAMELIST /oce_tra/ diff_sh_limit, Kv0_const, double_diffusion, K_ver, K_hor, surf_relax_T, &
+         surf_relax_S, balance_salt_water, clim_relax, &
+         ref_sss_local, ref_sss, i_vert_diff, tracer_adv
+
 END MODULE o_PARAM  
 !==========================================================
 
 !==========================================================
 MODULE o_MESH
+
 USE o_PARAM
 ! All variables used to keep the mesh structure +
 ! auxiliary variables involved in implementation 

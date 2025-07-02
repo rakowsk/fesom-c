@@ -7,6 +7,7 @@ SUBROUTINE compute_vel_rhs
   USE o_MESH
   USE o_ARRAYS
   USE o_PARAM
+  USE fv_sbc
 
   USE g_PARSUP
   use g_comm_auto
@@ -37,7 +38,7 @@ SUBROUTINE compute_vel_rhs
      pre = -g*(a_tp(elem2D_nodes(:,el),1)*eta_n(elem2D_nodes(:,el)) - &
           a_tp(elem2D_nodes(:,el),2)*ssh_gp(elem2D_nodes(:,el)))
 
-     if (key_atm) then
+     if (Atm_pr == 1) then
         Atm_mean = w_cv(1,el)*mslp(elem2D_nodes(1,el)) &
              +  w_cv(2,el)*mslp(elem2D_nodes(2,el)) &
              +  w_cv(3,el)*mslp(elem2D_nodes(3,el)) &
@@ -107,6 +108,20 @@ SUBROUTINE compute_vel_rhs
   !======
   ! Horizontal viscosity part
   !======
+  ! IK remove rivers
+  !VF, rivers
+  !if (riv) then
+  !   call riv_mom_adv_3D
+  !!$OMP PARALLEL DO PRIVATE(nz,rie,el)
+  !   DO el=1,riv_amount
+  !      rie= edge_tri(1,riv_ind_eg(el))
+  !      do nz=1,nsigma-1
+  !         U_rhs(nz,rie) = U_rhs(nz,rie) +riv_vel_u(nz,el)
+  !         V_rhs(nz,rie) = V_rhs(nz,rie) +riv_vel_v(nz,el)
+  !      enddo
+  !   enddo
+  !!$OMP END PARALLEL DO
+  !endif
 
   if (filt_3D) call viscosity_filt_3D
   if (filt_bi_3D) call viscosity_filt2x_3D
@@ -147,47 +162,45 @@ SUBROUTINE compute_vel_rhs
   call exchange_elem(V_rhs)
 #endif
 
+#ifdef DEBUG
 #ifdef USE_MPI
-!     call MPI_AllREDUCE(minval(Je(1,:)),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(minval(Je(1,:)),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+          MPI_COMM_FESOM_C, MPIerr)
 
-!     call MPI_AllREDUCE(maxval(Je(1,:)),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(maxval(Je(1,:)),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+          MPI_COMM_FESOM_C, MPIerr)
 
-!IK     if (mype==0) print *,'MIN_VAL rhsAB',mnv
-!IK     if (mype==0) print *,'MAX_VAL rhsAB',mxv
+     if (mype==0) print *,'MIN_VAL rhsAB',mnv
+     if (mype==0) print *,'MAX_VAL rhsAB',mxv
 #else
-!IK     print *,'MIN_VAL rhsAB',minval(Je(1,:))
-!IK     print *,'MAX_VAL rhsAB',maxval(Je(1,:))
+     print *,'MIN_VAL rhsAB',minval(Je(1,:))
+     print *,'MAX_VAL rhsAB',maxval(Je(1,:))
+#endif
 #endif
 
 
+#ifdef DEBUG_ARRAYS
 #ifdef USE_MPI
-!     call MPI_AllREDUCE(minval(U_rhs),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(minval(U_rhs),mnv, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
+          MPI_COMM_FESOM_C, MPIerr)
 
-!     call MPI_AllREDUCE(maxval(U_rhs),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-!          MPI_COMM_FESOM_C, MPIerr)
+     call MPI_AllREDUCE(maxval(U_rhs),mxv, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
+          MPI_COMM_FESOM_C, MPIerr)
 
-!IK     if (mype==0) print *,'MIN_VAL U_rhs',mnv
-!IK     if (mype==0) print *,'MAX_VAL U_rhs',mxv
+     if (mype==0) print *,'MIN_VAL U_rhs',mnv
+     if (mype==0) print *,'MAX_VAL U_rhs',mxv
 #else
-!IK     print *,'MIN_VAL U_rhs',minval(U_rhs)
-!IK     print *,'MAX_VAL U_rhs',maxval(U_rhs)
+     print *,'MIN_VAL U_rhs',minval(U_rhs)
+     print *,'MAX_VAL U_rhs',maxval(U_rhs)
+#endif
 #endif
 
 
 !$OMP END DO
 !$OMP END PARALLEL
-!!! comment from here to 0>
-  if (im_vert_visc) call momentum_vert_impl_visc
-  if (im_vert_visc_fic) then
-    call momentum_vert_impl_visc_tmp
 
-  endif
-!!! up to here <0
-!!! new version of the MOST
-!  call vert_impl_MOST
+  if (im_vert_visc) call momentum_vert_impl_visc
+!SH SKIPPED FOR NOW  if (im_vert_visc_fic) Call momentum_vert_impl_visc_tmp
 
   ! =======================
   ! U_rhs contains all contributions to velocity from old time steps
@@ -234,13 +247,13 @@ SUBROUTINE update_3D_vel
      a(1:nsigma-1) = a(1:nsigma-1) /Je(1:nsigma-1,el)
 
      ! velocity for transport equations
-
+     
      U_n_filt(1:nsigma-1,el)=  a(1:nsigma-1)*U_rhs(1:nsigma-1,el)+ U_filt_2D(el) - U_2D_p
      V_n_filt(1:nsigma-1,el)=  a(1:nsigma-1)*V_rhs(1:nsigma-1,el)+ V_filt_2D(el) - V_2D_p
 
      U_n(1:nsigma-1,el)=  a(1:nsigma-1)*U_rhs(1:nsigma-1,el) + U_n_2D(1,el) - U_2D_p
      V_n(1:nsigma-1,el)=  a(1:nsigma-1)*V_rhs(1:nsigma-1,el) + U_n_2D(2,el) - V_2D_p
-
+     
   END DO
 !$OMP END DO
 
@@ -301,8 +314,10 @@ SUBROUTINE compute_puls_vel
   call exchange_elem(V_puls)
 #endif
 
-!SHDB print *,'U_puls :',mype,minval(U_puls),maxval(U_puls)
-!SHDB print *,'V_puls :',mype,minval(V_puls),maxval(V_puls)
+#ifdef DEBUG
+  print *,'U_puls :',mype,minval(U_puls),maxval(U_puls)
+  print *,'V_puls :',mype,minval(V_puls),maxval(V_puls)
+#endif
 
 END SUBROUTINE compute_puls_vel
 !=========================================================================
@@ -317,7 +332,7 @@ SUBROUTINE vert_vel_sigma
 
   use g_parsup
   use g_comm_auto
-
+  
   IMPLICIT NONE
 
   integer       :: el(2),el1, n, nz, ed
@@ -326,7 +341,7 @@ SUBROUTINE vert_vel_sigma
   integer       ::  me_nod1, me_nod2
 
   integer :: edglim
-
+  
   me_nod1 = 1
   me_nod2 = myDim_nod2D+eDim_nod2D
 
@@ -356,10 +371,10 @@ SUBROUTINE vert_vel_sigma
 #ifdef USE_MPI
      if (mylist_edge2D(ed)>edge2D_in) cycle
 #endif
-
+     
      !$ if ( (edge_nodes(1,ed) >= me_nod1 .and. edge_nodes(1,ed)<= me_nod2 ) &
      !$  .or.(edge_nodes(2,ed) >= me_nod1 .and. edge_nodes(2,ed)<= me_nod2 ) ) then
-
+     
      el=edge_tri(:,ed)
 
      do nz=1,nsigma-1

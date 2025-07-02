@@ -1,13 +1,14 @@
 # Compiler and Linker
 CC = mpicc 
-FC = mpif90#gfortran#mpifort 
+FC = mpif90
 LD = $(FC)
 
 # Optimization specs for compiler
 #OPT  = -r8 -i4 -O3 -fp-model precise -no-prec-div -no-prec-sqrt -fast-transcendentals -xHost -ip -implicitnone -traceback -g -debug -check all
-OPT =  -g -fbounds-check -fbacktrace -ffree-line-length-512
-OPT = -O2 -ffree-line-length-512 -fallow-argument-mismatch
-COPT =  -DLINUX -DUNDER_ -DMPI2 
+OPT = -g 
+COPT = -O2 -DLINUX -DUNDER_ -DMPI2 -Iinclude -g
+#OPT = -r8 -i4 -fp-model precise -ip -implicitnone -traceback -g -debug -check all
+#COPT = -O3 -DLINUX -DUNDER_ -DMPI2 -Iinclude -traceback -g
 ######################################################
 # Include path for MPI header file
 MPIROOT            = 
@@ -19,8 +20,7 @@ MPI_INCLUDE        =
 NCDIR   = 
 NCLIB   = -L$(NETCDF_DIR)/lib -lnetcdff -lnetcdf 
 NCINC   = -I$(NETCDF_DIR)/include
-NCINC = -I/usr/include
-NCLIB = -L/usr/lib/x86_64-linux-gnu -lnetcdff -Wl,-Bsymbolic-functions -Wl,-z,relro -Wl,-z,now -lnetcdf -lnetcdf -ldl -lm
+
 # Definition of LAPACK include and library (if not provided by FoSSI)
 LIB_LAP = -mkl
 
@@ -46,15 +46,13 @@ LIB_PARMS = -L$(PARMS_DIR)/lib -lparms
 # METIS_DIR = ../lib/metis-4.0
 # LIB_METIS = -L$(METIS_DIR) -lmetis
 # METIS_INC = 
-# METIS_DEFS = # -DPART_WEIGHTED
+# METIS_DEFS = -DMETIS_VERSION=4
 
 METIS_DIR = ../lib/metis-5.1.0
-METIS_DIR = /usr
 LIB_METIS = -L$(METIS_DIR)/lib -lmetis
-LIB_METIS = -L$(METIS_DIR)/lib/x86_64-linux-gnu/ -lmetis
 METIS_INC = -I$(METIS_DIR)/include
 METIS_DEFS = -DMETIS_VERSION=5 -DPART_WEIGHTED -DMETISRANDOMSEED=35243
-# METISRANDDOMSEED: any integer
+### METISRANDDOMSEED: any integer
 
 ######################################################
 #

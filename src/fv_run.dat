@@ -15,21 +15,21 @@
 ! title_nod2d.out and etc.
 !==============================================================================!
 
- TITLE = HB
+ TITLE = LE
  
 !==============================================================================!
 !                 PARAMETERS CONTROLLING TIME STEPS                            !
 ! dt_2D  - time step for the barotropic mode in seconds                        !
 ! dt  - time step for the baroclinic mode in seconds                           !
 ! nsteps - total amount of barotropic steps                                    !
-! time_jd0 - the Julian day corresponding to the start of simulated period     !        
+! time_jd0 - the Julian day corresponding to the start of simulated period 2452853    !        
 !==============================================================================!
 
- dt_2D = 1.3493125 
- dt = 5.493125
- nsteps = 5256000 
- JD0 = 2452853.0
-
+ dt_2D = 0.05
+ dt = 0.5
+ nsteps = 216000 
+ JD0 = 0.0
+! JD0 = 2452853.0
 !===============================================================================!
 !                 PARAMETERS CONTROLLING INPUT/OUTPUT                           !
 ! INDIR is a directory, where input files should be situated                    !
@@ -46,12 +46,12 @@
 !===============================================================================!
 
  INDIR       = ./
- OUTDIR      = ./Output/
- MESHPATH    = ./RUN/
+ OUTDIR      = ../../OUTPUT/
+ MESHPATH    = ../../MESH/LE/
 
- IREP = 10         
- IREC = 15000
- IRESTART = 15000
+ IREP = 200         
+ IREC = 7200
+ IRESTART = 80000
  RESTART  =  cold_start 
 
  VERBOSITY = 1 
@@ -72,7 +72,7 @@
 ! If CARTESIAN=T, then, please, specify appropriate latitude value in degree.   !
 !===============================================================================!
 
- Coriolis_TF = T
+ Coriolis_TF = F
  lat_cartesian = 50.0
 
 !===============================================================================!
@@ -107,9 +107,9 @@
 
  vert_adv = 1
  ex_vert_visc = F
- im_vert_visc = F
- im_vert_visc_fic = T
- fic_point = 1
+ im_vert_visc = T
+ im_vert_visc_fic = F
+ fic_point = 0
 		
 !===============================================================================!
 !        TRACER ADVECTION                                                       !
@@ -121,7 +121,7 @@
 ! mu_w+up_w should be equal to 1.                                               !
 !===============================================================================!
 
- tracer_adv =  1
+ tracer_adv =  4
  mu_w=0.85
  up_w=0.15
  
@@ -137,25 +137,25 @@
 !                       2 - Cd is calculated using z0b_min+z0s_min                         !
 !==========================================================================================!
 
- Cd = .005
+ Cd = .0
  z0b_min = .01
- z0s_min = .01
+ z0s_min = .02
  za = .00
- BFC = 2
+ BFC = 1
 
 !============================================================================================!
 !                 PARAMETERS CONTROLLING DIFFUSIVITY                                         !
 !============================================================================================!
 
- Abh0 = 1.e11
+ Abh0 = 2.e9
  C_Smag = .2
- A_hor =  10
+ A_hor =  0.010
  tau_c = .4
- snul    = 5.e-4
- filt_2D = T
+ snul    = 5.e-7
+ filt_2D = F
  filt_bi_2D = F
  bih_2D = F
- filt_3D = T
+ filt_3D = F
  filt_bi_3D = F
  bih_3D = F
 
@@ -171,10 +171,10 @@
 !============================================================================================!
 
  BAROTROPIC = F
- BAROTROPIC_3D = F
- SALINITY_ON = T
+ BAROTROPIC_3D = T
+ SALINITY_ON = F
  TEMP_ON = T
- S_const = 30.0
+ S_const = 35.0
  T_const = 20.0
  
 !============================================================================================!
@@ -183,7 +183,7 @@
 !              2 ---> GOTM                                                                   !
 !              3 ---> b-l                                                                    !
 !============================================================================================!        
-Vert_turb = 2
+Vert_turb = 3
 
 !============================================================================================!
 !                  PARAMETERS CONTROLLING DENSITY CALCULATION                                !
@@ -213,9 +213,9 @@ Vert_turb = 2
 !============================================================================================! 
 
  type_vd =  sigma 
- nsigma = 21  
+ nsigma = 40  
  ind_sigma = 1    
- pow_sig = 2. 
+ pow_sig = 1. 
  lev_bot=1.
  lev_sur=1.
  KSw = 0.5 0.5 1.5 1.5 ! the near surface layers with constant depth
@@ -235,13 +235,13 @@ Vert_turb = 2
 ! If you would like to include rivers only through open boundaries, please, specify Riv = F.             !
 !========================================================================================================!
 
- Riv = T
+ Riv = F
  Stratif_sigma = F
  Q_sigma = F
  Riv_OB = F
  riv_relax = 3.0
  relax2riv = 30.0
- Time_riv_begin = 2452853.0
+ Time_riv_begin = 0.0
 
 !=========Do you want to apply atmospheric forcing?=======================================================!
 
@@ -269,9 +269,9 @@ key_ic = F    ! key to switch ON or OFF module for interpolation of initial cond
 ! be provided for the open boundary nodes.                                            !
 !=====================================================================================!
 
- TF_presence = T
+ TF_presence = F
  Time_tf  = non-julian
- Harmonics_tf = S2
+ Harmonics_tf = M2
  T_potential = F
  
 !=========================================================================================================!
@@ -337,32 +337,32 @@ T_out = F          ! Do you want to organize output? True or False
 T_out_el_va = F    ! Output for the elevation and averaged velocities. True or False
 T_out_3Dvel = F    ! Output for the 3D velocities. True or False
 T_period = 12.42   ! Period of interest in hours
-T_num = 12         ! Amount of periods to equilibrate the system
+T_num = 5         ! Amount of periods to equilibrate the system
 T_aval = 64        ! Amount of records of each value per period for analysis
-T_step = 3.3493125 ! Appropriate baroclinic time step (dt), it should be equal to T_period*3600/(T_aval*i), 
+T_step = 46.575 ! Appropriate baroclinic time step (dt), it should be equal to T_period*3600/(T_aval*i), 
                    ! where i is arbitrary integer > 0
 
 !============ Parameters Controlling Wetting/Drying=============================!
                                                                                                                            
- WET_DRY_ON = T
+ WET_DRY_ON = F
 
 !====VARIABLES CONTROLLING NETCDF OUTPUT========================================!
 
- key_nc_output = T   ! check outputfilelist.dat
+ key_nc_output = F   ! check outputfilelist.dat
  NETCDF_var_amount = 3
  NETCDF_var = el ua va 
  
 !==== Parameter controlling sponge layer======================================================!
 
- SL_obn = T
- SL_obn_user_def = T  !If you would like to prescribe the sponge layer by your own
+ SL_obn = F
+ SL_obn_user_def = F  !If you would like to prescribe the sponge layer by your own
                       !please, set T and keep SL_obn also true
- SL_radius = 20000.0  ! Radius defines the area around OBN, where nudging works, [m] 
+ SL_radius = 15000.0  ! Radius defines the area around OBN, where nudging works, [m] 
 
 !==== Parameters, which are controlling stabilization at the ob================================!
 
 mixed_BP_grad_OB = F
-Cd_bz = 10.0  
+Cd_bz = 0.0  
 Bp_bz = 0.0 
 
 !==== Parameter controlling Open Boundary/Solid Boundary relaxation===========================!
@@ -373,9 +373,9 @@ Bp_bz = 0.0
 ! relax2clim - relaxation at the solid boundary should be provided by user as input file      !
 !=============================================================================================!
 
-cl_relax = T
-clim_relax = 0.05
-relax2clim_ac = 0.5
+cl_relax = F
+clim_relax = 0.0416666666666
+relax2clim_ac = 0.0208333333
 cl_solid_boder_relax = F
 
 !==== Parameter controlling Open Boundary Temp/Salt Series Nudging==============!

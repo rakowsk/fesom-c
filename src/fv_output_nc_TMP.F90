@@ -6,6 +6,7 @@ SUBROUTINE nc_init
   USE o_PARAM
   USE o_MESH
   USE o_ARRAYS
+  use g_parsup
 
 !-----local declarations
 
@@ -17,7 +18,7 @@ SUBROUTINE nc_init
   CHARACTER(len=100)          :: ncfile, file_name
   CHARACTER(len=200)          :: attstr
   INTEGER                      :: attValInt
-  REAL(KIND=8)                 :: attVal, notyetknown
+  REAL(KIND=WP)                 :: attVal, notyetknown, t_coord
   CHARACTER(len=2)            :: par_num
   CHARACTER(len=3)            :: StrMeshID
   INTEGER                     :: i
@@ -31,11 +32,16 @@ SUBROUTINE nc_init
   INTEGER                     :: VarId_time, VarId_iter	     ! variables: time, iteration 
   INTEGER                     :: VarId_trian			     ! variable: triangle
   INTEGER                     :: VarId_loc2D, VarId_lon, VarId_lat ! variables: 2D location, longitude, latitude
-  INTEGER                     :: VarId_ssh			     ! variable: sea surface height
+  INTEGER                     :: VarId_lone, VarId_late, VarId_depthe
+  INTEGER                     :: VarId_wcv
+  INTEGER                     :: VarId_eta			     ! variable: sea surface height
+  INTEGER                     :: VarId_u2d			     ! variable: average velocity U
+  INTEGER                     :: VarId_v2d			     ! variable: average velocity V
+
   INTEGER                     :: VarId_temp			     ! variable: temperature
   INTEGER                     :: VarId_salt			     ! variable: salinity
 !!$    INTEGER                     :: VarId_tri_area		     ! variable: area
-!!$    INTEGER                     :: VarId_topo, VarId_index	     ! variables: topography, index
+  INTEGER                     :: VarId_topo, VarId_index	     ! variables: topography, index
 !!$    INTEGER                     :: VarId_arrival                     ! variable: arrival time
 !!$    INTEGER                     :: VarId_ttt                         ! variable: estimated arrival time ttt
 !!$    INTEGER                     :: VarId_mwh  			     ! variable: maximum wave height
@@ -45,8 +51,15 @@ SUBROUTINE nc_init
   INTEGER                     :: s       			     ! auxiliary: status counter
   INTEGER, DIMENSION(3)       :: dimarray			     ! auxiliary: array dimension
   INTEGER, DIMENSION(500)     :: stat    			     ! auxiliary: status array
+  INTEGER                     :: maxnod = 4                          ! number of nodes on element
 !!$        
   REAL, DIMENSION(2,nod2D)    :: AUX_loc
+  REAL(kind=wp), DIMENSION(4,elem2D)   :: AUX_wcv
+  REAL(kind=wp), DIMENSION (elem2D)    :: AUX_lone, AUX_late, AUX_depthe
+
+
+  real(kind=wp), allocatable, dimension(:)  :: lon_elem, lat_elem, depth_elem
+  integer                     :: el, elnodes(4)
 !!$    REAL(KIND=8)  ::   X0, Y0, D, L, W, TH, DL, HH, RD
 !!$
 !!$    REAL(KIND=8)  :: att_mw
@@ -65,122 +78,17 @@ SUBROUTINE nc_init
   stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'title',       LEN_TRIM(attstr),    &
                               TRIM(attstr)) 
     s = s + 1
-!!$    attstr  = 'AWI'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'institution', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$    IF (enable_ruptgen_scenario) THEN
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'TSID',     LEN_TRIM(TSID), TSID) 
-!!$       s = s + 1
-!!$    END IF
     stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'Conventions', LEN_TRIM('CF-1.0'),  &
                               'CF-1.0') 
 
-!!$
-!!$    WRITE(StrMeshID, '(I3.3)') MeshID
-!!$    attstr  = 'TsunAWI Revision '//revision//' - Mesh: '//StrMeshID
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'source', LEN_TRIM(attstr),     &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$    attstr  = 'no entry'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'history', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$    attstr  = 'none'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'references', LEN_TRIM(attstr), &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$    attstr  = 'none'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'comment', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$
-!!$    attstr  = 'AWI'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'provider', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$
-!!$    attstr  = 'TsunAWI'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'model', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$
-!!$    attstr  = revision
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'modelVersion', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$
-!!$
-!!$    attstr  = 'regional'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'scope', LEN_TRIM(attstr),    &
-!!$                              TRIM(attstr)) 
-!!$    s = s + 1
-!!$
-!!$    notyetknown=-99999.
-!!$
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'globalMinSSH',         NF_DOUBLE, 1, notyetknown) 
-!!$    s = s + 1
-!!$
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'globalMaxSSH',         NF_DOUBLE, 1, notyetknown) 
-!!$    s = s + 1
-!!$
-!!$    attval=maxval(coord_nod2D(1,:))/rad
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'boundingBox_UpperRight_Lon',         NF_DOUBLE, 1, attval) 
-!!$    s = s + 1
-!!$
-!!$    attval=maxval(coord_nod2D(2,:))/rad
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'boundingBox_UpperRight_Lat',         NF_DOUBLE, 1, attval) 
-!!$    s = s + 1
-!!$
-!!$    attval=minval(coord_nod2D(1,:))/rad
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'boundingBox_LowerLeft_Lon',         NF_DOUBLE, 1, attval) 
-!!$    s = s + 1
-!!$
-!!$    attval=minval(coord_nod2D(2,:))/rad
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'boundingBox_LowerLeft_Lat',         NF_DOUBLE, 1, attval) 
-!!$
-!!$    
-!!$    s = s + 1
-!!$    attval=T_out
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'outputTimestepSize',         NF_DOUBLE, 1, attval) 
-!!$    s = s + 1
-!!$    
-!!$    attval=T_end
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'integrationTime',         NF_DOUBLE, 1, attval)
-!!$    s = s + 1
-!!$    
-!!$    attval=longestEdge
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'spatialResolution_Coarse',         NF_DOUBLE, 1, attval)
-!!$    s = s + 1
-!!$    
-!!$    attval=shortestEdge
-!!$    stat(s) = NF_PUT_ATT_DOUBLE(fileid, NF_GLOBAL, 'spatialResolution_Fine',         NF_DOUBLE, 1, attval)
-!!$    s = s + 1
-!!$
-!!$    attValInt=nod2D
-!!$    stat(s) = NF_PUT_ATT_INT(fileid,    NF_GLOBAL,  'degreeOfFreedom',          NF_INT,    1, attValInt)
-!!$
-!!$    if (enable_benchmark .and. benchmark_ident<=2) then
-!!$       s = s + 1
-!!$       if  (benchmark_ident==1) attstr  = 'Bathymetry / topography data: Sloping beach experiment'
-!!$       if  (benchmark_ident==1) attstr  = 'Bathymetry / topography data: Monai beach channel experiment'
-!!$
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, NF_GLOBAL, 'meshDataDescription', LEN_TRIM(attstr),    &
-!!$            TRIM(attstr)) 
-!!$    endif
-!!$    
-!!$
-!!$
-!!$
 !!$!----- DEFINE DIMENSIONS ------------------------------
 !!$
     s = s + 1
-    stat(s) = NF_DEF_DIM(fileid, 'nodes_2D',     nod2D, DimId_n2D)             
+    stat(s) = NF_DEF_DIM(fileid, 'node', nod2D, DimId_n2D)             
     s = s + 1
-    stat(s) = NF_DEF_DIM(fileid, 'elements_2D', elem2D, DimId_el2D)        
-    s = s + 1
-    stat(s) = NF_DEF_DIM(fileid, 'vert_layers', nsigma-1 , DimId_lyrs)        
+    stat(s) = NF_DEF_DIM(fileid, 'nele', elem2D, DimId_el2D)        
+ !aa67   s = s + 1
+ !aa67   stat(s) = NF_DEF_DIM(fileid, 'vert_layers', nsigma-1 , DimId_lyrs)        
     s = s + 1
     stat(s) = NF_DEF_DIM(fileid, 'one',   1, dim1)                           
     s = s + 1
@@ -210,10 +118,10 @@ SUBROUTINE nc_init
     stat(s) = NF_DEF_VAR(fileid, 'surface_locations', NF_FLOAT, 2, dimarray(1:2), VarId_loc2D) 
 
     s = s + 1
-    stat(s) = NF_DEF_VAR(fileid, 'longitude',         NF_FLOAT, 1, DimId_n2D,     VarId_lon) 
+    stat(s) = NF_DEF_VAR(fileid, 'lon',         NF_DOUBLE, 1, DimId_n2D,     VarId_lon) 
 
     s = s + 1
-    stat(s) = NF_DEF_VAR(fileid, 'latitude',          NF_FLOAT, 1, DimId_n2D,     VarId_lat) 
+    stat(s) = NF_DEF_VAR(fileid, 'lat',         NF_DOUBLE, 1, DimId_n2D,     VarId_lat) 
 
 
 !----- grid
@@ -224,12 +132,6 @@ SUBROUTINE nc_init
     s = s + 1
     stat(s) = NF_DEF_VAR(fileid, 'triangles', NF_INT,   2, dimarray(1:2), VarId_trian) 
 
-!!$    stat(s) = NF_DEF_VAR(fileid, 'tri_area',  NF_FLOAT, 1, DimId_el2D,    VarId_tri_area) 
-!!$    s = s + 1
-!!$
-!!$!----- node indices
-!!$    stat(s) = NF_DEF_VAR(fileid, 'node_index', NF_INT,  1, DimId_n2D,     VarId_index) 
-
 !!$
 !!$!----- numbers
 !!$
@@ -237,15 +139,32 @@ SUBROUTINE nc_init
     stat(s) = NF_DEF_VAR(fileid, 'iteration', NF_INT,   1, DimId_iter,    VarId_iter) 
 
     s = s + 1
-    stat(s) = NF_DEF_VAR(fileid, 'time',   NF_DOUBLE,   1, DimId_iter,    VarId_time) 
+    stat(s) = NF_DEF_VAR(fileid, 'time',  NF_DOUBLE, 1, DimId_iter,    VarId_time) 
 
-!!$    s = s + 1
-!!$
-!!$
-!!$!----- topography
-!!$
-!!$    stat(s) = NF_DEF_VAR(fileid, 'topography', NF_FLOAT, 1, DimId_n2D,    VarId_topo) 
-!!$    s = s + 1
+!----- topography
+
+    stat(s) = NF_DEF_VAR(fileid, 'depth', NF_DOUBLE, 1, DimId_n2D,    VarId_topo) 
+    s = s + 1
+
+!------ mesh
+
+    ALLOCATE( lon_elem(elem2D), lat_elem(elem2D), depth_elem(elem2D))
+
+    stat(s) = NF_DEF_VAR(fileid, 'lon_elem',  NF_DOUBLE, 1, DimId_el2D,     VarId_lone) 
+    s = s + 1
+
+    stat(s) = NF_DEF_VAR(fileid, 'lat_elem',  NF_DOUBLE, 1, DimId_el2D,     VarId_late) 
+    s = s + 1
+
+    stat(s) = NF_DEF_VAR(fileid, 'depth_elem',  NF_DOUBLE, 1, DimId_el2D,     VarId_depthe) 
+    s = s + 1
+
+
+    dimarray(1) = dim4
+    dimarray(2) = DimId_el2D
+
+    stat(s) = NF_DEF_VAR(fileid, 'w_cv',      NF_DOUBLE, 2, dimarray(1:2),     VarId_wcv)
+    s = s + 1
 
 !----- F I E L D S 
 
@@ -254,37 +173,34 @@ SUBROUTINE nc_init
     dimarray(1) = DimId_n2D
     dimarray(2) = DimId_iter
 
-    stat(s) = NF_DEF_VAR(fileid, 'ssh', NF_FLOAT, 2, dimarray(1:2), VarId_ssh); 
+    stat(s) = NF_DEF_VAR(fileid, 'eta', NF_DOUBLE, 2, dimarray(1:2), VarId_eta); 
     s = s + 1
 
-    dimarray(1) = DimId_lyrs
-    dimarray(2) = DimId_n2D
-    dimarray(3) = DimId_iter
+  !aa67  dimarray(1) = DimId_lyrs
+  !aa67  dimarray(2) = DimId_n2D
+  !aa67  dimarray(3) = DimId_iter
 
-    s = s + 1
-    stat(s) = NF_DEF_VAR(fileid, 'temperature', NF_FLOAT, 3, dimarray(1:3), VarId_temp); 
+ !aa67   s = s + 1
+ !aa67   stat(s) = NF_DEF_VAR(fileid, 'temperature', NF_FLOAT, 3, dimarray(1:3), VarId_temp); 
 
-    s = s + 1
-    stat(s) = NF_DEF_VAR(fileid, 'salinity', NF_FLOAT, 3, dimarray(1:3), VarId_salt); 
+ !aa67   s = s + 1
+ !aa67   stat(s) = NF_DEF_VAR(fileid, 'salinity', NF_FLOAT, 3, dimarray(1:3), VarId_salt); 
 
-!!$
-!!$!----- arrival times, max. wave height, max. abs. velocity, max. flux, initial uplift
-!!$
-!!$    stat(s) = NF_DEF_VAR(fileid, 'first_arrival',     NF_FLOAT, 1, DimId_n2D, VarId_arrival)
-!!$ 
-!!$    if (write_ttt) then
-!!$       s = s + 1
-!!$       stat(s) = NF_DEF_VAR(fileid, 'first_arrival_ttt', NF_FLOAT, 1, DimId_n2D, VarId_ttt) 
-!!$    endif
-!!$    s = s + 1
-!!$    stat(s) = NF_DEF_VAR(fileid, 'max_wave_height',   NF_FLOAT, 1, DimId_n2D, VarId_mwh) 
-!!$    s = s + 1
-!!$    stat(s) = NF_DEF_VAR (fileid, 'max_abs_vel',       NF_FLOAT, 1, DimId_n2D, VarId_vel) 
-!!$    s = s + 1
-!!$    stat(s) = NF_DEF_VAR(fileid, 'max_flux',          NF_FLOAT, 1, DimId_n2D, VarId_flux) 
-!!$    s = s + 1
-!!$    stat(s) = NF_DEF_VAR(fileid, 'initial_uplift',    NF_FLOAT, 1, DimId_n2D, VarId_uplift) 
-!!$
+!aa67
+!!$!----- vector variables
+
+      dimarray(1) = DimId_el2D
+      dimarray(2) = DimId_iter
+
+      stat(s) = NF_DEF_VAR(fileid, 'u2d', NF_DOUBLE, 2, dimarray(1:2), VarId_u2d)
+      s = s + 1
+
+      stat(s) = NF_DEF_VAR(fileid, 'v2d', NF_DOUBLE, 2, dimarray(1:2), VarId_v2d)
+      s = s + 1
+
+!aa67
+
+
 !!$!----- vector variables
 !!$
 !!$!-----  velocity in nodes
@@ -323,134 +239,43 @@ SUBROUTINE nc_init
 !!$    s = s + 1
 !!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_tri_area, 'long_name',   13, 'triangle area') 
 !!$    s = s + 1
-    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ssh,      'long_name',   21, 'sea surface elevation') 
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_eta,      'units',        5, 'meter') 
     s = s + 1
-    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ssh,      'units',        5, 'meter') 
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_eta,      'standard_name',   21, 'sea surface elevation') 
     s = s + 1
-    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ssh,      'field',       19, 'ssh, scalar, series') 
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_eta,      'modelname',       20, 'eta_n+depth(depth<0)') 
     s = s + 1
-    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ssh,      'connections', 20, 'triangles, triangles') 
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'standard_name',   5, 'depth') 
     s = s + 1
-    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ssh,      'positions',   17, 'surface_locations') 
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'units',       1, 'm') 
     s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'long_name',   10, 'topography') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'field',       10, 'topography') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'connections', 20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'positions',   17, 'surface_locations') 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'meters (after shock bathymetry and topography)'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_topo,     'units',       LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    
-!!$    attstr='initial uplift due to earthquake'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_uplift,   'long_name',   LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_uplift,   'field',       14, 'initial_uplift') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_uplift,   'connections', 20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_uplift,   'positions',   17, 'surface_locations') 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'meters'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'units',       LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    attstr  = 'first wave arrival (sea surface elevation larger than +0.01m)'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'long_name',   LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1    
-!!$    attstr = 'eta_thd_orig'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'eta_type', LEN_TRIM(attstr),attstr)
-!!$    s = s + 1
-!!$    attstr  = 'seconds after rupture'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'units',       LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'field',       13, 'first_arrival') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'connections', 20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_arrival,   'positions',   17, 'surface_locations') 
-!!$
-!!$    if (write_ttt) then
-!!$       s = s + 1
-!!$       attstr  = 'first wave arrival (estimated arrival time - ttt)'
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt      , 'long_name',   LEN_TRIM(attstr), attstr) 
-!!$       s = s + 1
-!!$       attstr = 'ttt_est_orig'
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt,   'eta_type', LEN_TRIM(attstr),attstr)
-!!$       s = s + 1
-!!$ 
-!!$       attstr  = 'seconds after rupture'
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt,       'units',       LEN_TRIM(attstr), attstr) 
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt,       'field',       17, 'first_arrival_ttt') 
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt,       'connections', 20, 'triangles, triangles') 
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_ttt,         'positions',   17, 'surface_locations') 
-!!$    endif
-!!$
-!!$    s = s + 1
-!!$    attstr  = 'maximum wave height\n (above mean sea level on sea \n and above after shock topography on land)'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_mwh,       'long_name',   LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'meters'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_mwh,       'units',       LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_mwh,       'field',       15, 'max_wave_height') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_mwh,       'connections', 20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_mwh,       'positions',   17, 'surface_locations') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_vel,       'long_name',   36, 'maximum nodal velocity approximation') 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'm/sec'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_vel,       'units',       LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_vel,       'field',       11, 'max_abs_vel'); s=s+1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_vel,       'connections', 20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_vel,       'positions',   17, 'surface_locations') 
-!!$    s = s + 1
-!!$
-!!$    attstr  = 'maximum flux in nodes\n (maximum value of the product of velocity and wave height)'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_flux,      'long_name',   LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'm^2/sec'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_flux,     'units',        LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_flux,     'field',         8, 'max_flux') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_flux,     'connections',  20, 'triangles, triangles') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_flux,     'positions',    17, 'surface_locations') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'long_name',     4, 'time'); 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = 'seconds since rupture'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'units',        LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    
-!!$    attstr  = '0'
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'time_origin',  LEN_TRIM(attstr), attstr) 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'field',        12, 'time, series') 
-!!$    s = s + 1
-!!$    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_iter,     'long_name',     9, 'iteration') 
-!!$
-!!$    DO i = 1, s
-!!$        IF (stat(i) /= NF_NOERR)                                          &
-!!$            WRITE(*, *) 'NetCDF error',stat(i),' in attribute assignments, no.', i
-!!$    END DO
-!!$
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_depthe,     'standard_name',   13, 'depth on elem') 
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_depthe,     'units',       1, 'm') 
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_u2d,      'units', 3,  'm/s') 
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_u2d,      'standard_name', 26, '2D velocity in x direction') 
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_u2d,      'modelname', 11, 'U_n_2D(1,:)')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_v2d,      'units', 3,  'm/s') 
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_v2d,      'standard_name', 26, '2D velocity in y direction')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_v2d,      'modelname', 11, 'U_n_2D(2,:)')
+    s = s+ 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_wcv,      'standard_name', 6  , ' Scv/Sc')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_lone,      'standard_name', 18, 'longitude_elements')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_lone,      'units', 11, 'degree_east')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_late,      'standard_name', 17, 'latitude_elements')
+    s = s + 1
+    stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_late,      'units', 11, 'degree_nort')
+
+    s = s + 1
     s = 1
 
     stat(s) = NF_ENDDEF(fileid) 
@@ -460,25 +285,31 @@ SUBROUTINE nc_init
 
 !----- coordinates
 
-!!$    IF (coordinate_type == 1) THEN
-!!$        AUX_loc(1, :) = coord_nod2D(1, :) / rad
-!!$        AUX_loc(2, :) = coord_nod2D(2, :) / rad
-!!$    ELSE
-        AUX_loc(1, :) = coord_nod2D_glob(1, :)
-        AUX_loc(2, :) = coord_nod2D_glob(2, :)
-!!$    END IF
+    IF (cartesian) THEN
+        AUX_loc(1, :) = coord_nod2D_glob(1, :) * r_earth
+        AUX_loc(2, :) = coord_nod2D_glob(2, :) * r_earth
+        t_coord = 1.0_WP*r_earth
+    ELSE
+        AUX_loc(1, :) = coord_nod2D_glob(1, :) / rad
+        AUX_loc(2, :) = coord_nod2D_glob(2, :) / rad
+        t_coord = 1.0_WP / rad
+    END IF
 !!$
     s = s + 1
-    !stat(s) = NF_PUT_VAR_REAL(fileid, VarId_loc2D,   AUX_loc(1:2, 1:nod2D)) 
-    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_loc2D,   AUX_loc(1:2, 1:nod2D)) 
-    s = s + 1
+    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_loc2D,   AUX_loc(1:2, 1:nod2D))
 
-    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_lon,     AUX_loc(1, 1:nod2D) ) 
+    s = s + 1
+    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_lon,     AUX_loc(1, 1:nod2D) )
+
     s = s + 1
     stat(s) = NF_PUT_VAR_REAL(fileid, VarId_lat,     AUX_loc(2, 1:nod2D) ) 
     s = s + 1
 
-!----- triangles
+!----- mesh
+  
+    Aux_wcv(:,:) = w_cv_glob(:,:)
+    stat(s) = NF_PUT_VAR_DOUBLE(fileid, VarId_wcv,     Aux_wcv(1:4, 1:elem2D) )
+    s = s + 1
 
     !SH Drastic workaround to get undistributed elements
     file_name=trim(meshpath)//'elem2d.out'
@@ -489,13 +320,39 @@ SUBROUTINE nc_init
     end do
     close(101)
 
+     do el = 1, elem2D
+          elnodes = elem2D_nodes_glob(:,el) !! 4 nodes in element
+         lat_elem(el) = w_cv_glob(1,el)*AUX_loc(2,elnodes(1)) &
+                + w_cv_glob(2,el)*AUX_loc(2,elnodes(2)) &
+                + w_cv_glob(3,el)*AUX_loc(2,elnodes(3)) &
+                + w_cv_glob(4,el)*AUX_loc(2,elnodes(4))
+         lon_elem(el) = w_cv_glob(1,el)*AUX_loc(1,elnodes(1)) &
+                + w_cv_glob(2,el)*AUX_loc(1,elnodes(2)) &
+                + w_cv_glob(3,el)*AUX_loc(1,elnodes(3)) &
+                + w_cv_glob(4,el)*AUX_loc(1,elnodes(4))
 
-    stat(s) = NF_PUT_VAR_INT(fileid,  VarId_trian,    elem2D_nodes_glob(:, :) - 1) 
+         depth_elem(el) = w_cv_glob(1,el)*depth_glob(elnodes(1)) &
+                       + w_cv_glob(2,el)*depth_glob(elnodes(2)) &
+                       + w_cv_glob(3,el)*depth_glob(elnodes(3)) &
+                       + w_cv_glob(4,el)*depth_glob(elnodes(4))
+      end do
+
+    AUX_lone(:) = lon_elem(:)
+    AUX_late(:) = lat_elem(:)
+    stat(s) = NF_PUT_VAR_DOUBLE(fileid, VarId_lone,     Aux_lone(1:elem2D) )
+    s = s + 1
+    stat(s) = NF_PUT_VAR_DOUBLE(fileid, VarId_late,     Aux_late(1:elem2D) )
+    s = s + 1
+
+
+    stat(s) = NF_PUT_VAR_INT(fileid,  VarId_trian,    elem2D_nodes_glob(:, :) ) 
     s = s + 1
 !!$    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_tri_area, REAL(voltriangle(:),        4)) 
 !!$    s = s + 1
-!!$    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_topo,     REAL(nodhn(:),              4)) 
-!!$    s = s + 1
+    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_topo,     REAL(depth_glob(:),4)) 
+    s = s + 1
+    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_depthe,     REAL(depth_elem(:),4)) 
+    s = s + 1
 !!$    stat(s) = NF_PUT_VAR_REAL(fileid, VarId_uplift,   REAL(ssh_init(:),           4)) 
 !!$    s = s + 1
 !!$    stat(s) =NF_PUT_VAR_INT(fileid,   VarId_index,    index_nod2D(:)) 
@@ -515,6 +372,9 @@ SUBROUTINE nc_init
     IF (stat(1) /= NF_NOERR) THEN
         WRITE(*, *) 'NetCDF error',stat(1),' in closing NetCDF file'
     END IF
+
+      DEALLOCATE( lon_elem, lat_elem, depth_elem)
+
 
 END SUBROUTINE nc_init
 #endif
@@ -542,9 +402,12 @@ SUBROUTINE nc_out(iteration)
     INTEGER 		         :: FileId
     INTEGER 		         :: VarId_iter, VarId_time   ! numbers
     INTEGER 		         :: VarId_topo               ! topography
-    INTEGER 		         :: VarId_ssh                ! fields: ssh
-    INTEGER 		         :: VarId_temp               ! fields: temperature
-    INTEGER 		         :: VarId_salt               ! fields: salinity
+    INTEGER 		         :: VarId_eta                ! fields: eta_n
+    INTEGER                     :: VarId_U2D			     ! variable: average velocity U
+    INTEGER                     :: VarId_V2D			     ! variable: average velocity V
+
+!aa67    INTEGER 		         :: VarId_temp               ! fields: temperature
+!aa67    INTEGER 		         :: VarId_salt               ! fields: salinity
 !!$    INTEGER 		         :: VarId_arrival            ! fields: Arrival times
 !!$    INTEGER 		         :: VarId_mwh                ! fields: maximum wave height
 !!$    INTEGER 		         :: VarId_flux, VarId_vel    !fields: flux and mean absolute velocity
@@ -559,11 +422,8 @@ SUBROUTINE nc_out(iteration)
     INTEGER                      :: s                        ! auxiliaries
 !!$    INTEGER                      :: restart_iter, dimid_iter
     REAL(kind=WP),       DIMENSION(nod2D) :: AUX_n2D
+    REAL(kind=WP),       DIMENSION(elem2D) :: AUX_u2De, AUX_v2De
     REAL(kind=WP),       DIMENSION(nsigma-1,nod2D) :: AUX_n3D
-!!$    REAL,     DIMENSION(2,nod2D) :: AUX_n2D_2
-!!$    REAL                         :: acc, inv_acc
-!!$   
-!!$    ncfile = ncfile_all
 
   ncfile='./fesom_c_out.nc'
 
@@ -585,23 +445,18 @@ SUBROUTINE nc_out(iteration)
   s = s + 1
   stat(s) = NF_INQ_VARID(fileid, "time",              VarId_time) 
   s = s + 1
-  stat(s) = NF_INQ_VARID(fileid, "ssh",               VarId_ssh) 
+  stat(s) = NF_INQ_VARID(fileid, "eta",               VarId_eta) 
   s = s + 1
-  stat(s) = NF_INQ_VARID(fileid, "temperature",       VarId_temp) 
+  stat(s) = NF_INQ_VARID(fileid, "u2d",            VarId_u2d)
   s = s + 1
-  stat(s) = NF_INQ_VARID(fileid, "salinity",          VarId_salt) 
+  stat(s) = NF_INQ_VARID(fileid, "v2d",            VarId_v2d) 
+
+!aa67  s = s + 1
+!aa67  stat(s) = NF_INQ_VARID(fileid, "temperature",       VarId_temp) 
+!aa67  s = s + 1
+!aa67  stat(s) = NF_INQ_VARID(fileid, "salinity",          VarId_salt) 
     !s = s + 1
     !stat(s) = NF_INQ_VARID(fileid, "ssh",               VarId_salt) 
-!!$    if (write_diag_in_nc_snapshots) then
-!!$       s = s + 1
-!!$       stat(s) = NF_INQ_VARID(fileid, "first_arrival",     VarId_arrival) 
-!!$       s = s + 1
-!!$       stat(s) = NF_INQ_VARID(fileid, "max_wave_height",   VarId_mwh) 
-!!$       s = s + 1
-!!$       stat(s) = NF_INQ_VARID(fileid, "max_abs_vel",       VarId_vel) 
-!!$       s = s + 1
-!!$       stat(s) = NF_INQ_VARID(fileid, "max_flux",          VarId_flux) 
-!!$    endif
 !!$
 !!$    IF (write_velocity) THEN
 !!$       s = s + 1
@@ -633,57 +488,35 @@ SUBROUTINE nc_out(iteration)
     AUX_n2D = 0.
     AUX_n2D(:) = eta_n_2_glob(:)
 
-!!$    if (nc_snapshot_accuracy_ssh <= 0.) then
-!!$!$OMP PARALLEL DO
-!!$       DO n = 1, nod2D
-!!$          IF (nodhn(n) < 0.) THEN
-!!$             AUX_n2D(n) = max(0., ssh1(n) + nodhn(n))
-!!$          ELSE
-!!$             AUX_n2D(n) = ssh1(n)
-!!$          END IF
-!!$       END DO
-!!$!$OMP END PARALLEL DO
-!!$    else
-!!$       acc = real(nc_snapshot_accuracy_ssh ,4)
-!!$       inv_acc = 1._4/nc_snapshot_accuracy_ssh 
-!!$!$OMP PARALLEL DO
-!!$       DO n = 1, nod2D
-!!$          IF (nodhn(n) < 0.) THEN
-!!$             AUX_n2D(n) =  acc* INT(inv_acc*max(0., real(ssh1(n) + nodhn(n),4)))
-!!$          ELSE
-!!$             AUX_n2D(n) =  acc* INT(inv_acc*real(ssh1(n),4))
-!!$          END IF
-!!$       END DO
-!!$!$OMP END PARALLEL DO
-!!$    end if
-!!$       
-!!$
 
     s = s + 1
-    stat(s) = NF_PUT_VARA_REAL(fileid, VarId_ssh, pos1vec, nmbvec, REAL(AUX_n2D(:),4))
-!!$
-!!$    if (write_diag_in_nc_snapshots) then
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_arrival, 1, nod2D, arrival_time(:)) 
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_mwh,     1, nod2D, mwh(:))
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_vel,     1, nod2D, max_abs_vel(:))
-!!$       s = s + 1
-!!$       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_flux,    1, nod2D, max_flux(:))
-!!$    endif
+    stat(s) = NF_PUT_VARA_REAL(fileid, VarId_eta, pos1vec, nmbvec, REAL(AUX_n2D(:),4))
+
+!aa67
+       pos1vec = (/ 1, iter /)
+       nmbvec  = (/ elem2D, 1 /)
 
 
+       AUX_u2De = 0.
+       AUX_v2De = 0.
+       AUX_u2De(:)=U_n_2D_glob(1,:)
+       AUX_v2De(:)=U_n_2D_glob(2,:)
 
+       s = s + 1
+       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_u2d, pos1vec, nmbvec, REAL(AUX_u2De(:),4))
+       s = s + 1
+       stat(s) = NF_PUT_VARA_REAL(fileid, VarId_v2d, pos1vec, nmbvec, REAL(AUX_v2De(:),4))
 
-    pos1vec3 = (/ 1, 1, iter  /)
-    nmbvec3  = (/ nsigma-1, nod2D, 1 /)
+!aa67
 
-    AUX_n3D = 0.
-    AUX_n3D   = TF_glob
+!aa67    pos1vec3 = (/ 1, 1, iter  /)
+!aa67    nmbvec3  = (/ nsigma-1, nod2D, 1 /)
 
-    s = s + 1
-    stat(s) = NF_PUT_VARA_REAL(fileid, VarId_temp, pos1vec3, nmbvec3, REAL(AUX_n3D(:,:),4))
+!aa67    AUX_n3D = 0.
+!aa67    AUX_n3D   = TF_glob
+
+!aa67    s = s + 1
+!aa67    stat(s) = NF_PUT_VARA_REAL(fileid, VarId_temp, pos1vec3, nmbvec3, REAL(AUX_n3D(:,:),4))
 
 !!$
 !!$!----- VECTOR FIELDS
@@ -798,3 +631,4 @@ subroutine nc_finalize
 
 end subroutine nc_finalize
 #endif
+

@@ -30,7 +30,7 @@ SUBROUTINE pressure
        IMPLICIT NONE
 
        real(kind=WP), intent(IN)       :: t,s,pz
-       real(kind=WP), intent(OUT) :: rho_out
+       real(kind=WP), intent(OUT) :: rho_out                 
        real(kind=WP)              :: rhopot, bulk, ss3
        real(kind=WP), intent(IN), optional   :: con_ss
 
@@ -43,9 +43,9 @@ SUBROUTINE pressure
 
   !$OMP PARALLEL PRIVATE(n,nz,rho_clim)
   if (mixed_BP_grad_OB) then
-
+     
      if (comp_sediment) then
-!$OMP DO
+!$OMP DO 
         DO n=1,myDim_nod2D+eDim_nod2D
 
            hpressure(1,n)   = 0.0_WP
@@ -60,7 +60,7 @@ SUBROUTINE pressure
               hpress_clim(nz+1,n) = hpress_clim(nz,n) + rho_clim   *Jc(nz,n)*g_density0_inv
            END DO
         END DO
-!$OMP END DO
+!$OMP END DO 
      else
 !$OMP DO
         DO n=1,myDim_nod2D
@@ -77,7 +77,7 @@ SUBROUTINE pressure
               hpress_clim(nz+1,n) = hpress_clim(nz,n) + rho_clim   *Jc(nz,n)*g_density0_inv
            END DO
         END DO
-!$OMP END DO
+!$OMP END DO 
      endif
 
 #ifdef USE_MPI
@@ -86,13 +86,13 @@ SUBROUTINE pressure
 #endif
 
      call baroclinic_pressure_gradient_3D_clim
-
+   
   else
-!$OMP DO
+!$OMP DO 
      DO n=1,myDim_nod2D+eDim_nod2D
-
+ 
         hpressure(1, n)=0.0_WP
-
+ 
         ! Compute density in the vertical column
         DO nz=1,nsigma-1
 
@@ -113,7 +113,7 @@ SUBROUTINE pressure
 #endif
 
 
-     call baroclinic_pressure_gradient_3D
+     call baroclinic_pressure_gradient_3D 
 
   endif
 
@@ -125,14 +125,14 @@ SUBROUTINE pressure
      call MPI_AllREDUCE(maxval(rho_c),mx_rho, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
           MPI_COMM_FESOM_C, MPIerr)
 
-     !if (mype==0) print *,'MIN_RHO',mn_rho
-     !if (mype==0) print *,'MAX_RHO',mx_rho
+     if (mype==0) print *,'MIN_RHO',mn_rho
+     if (mype==0) print *,'MAX_RHO',mx_rho
 #else
-!     print *,'MIN_RHO',minval(rho_c)
-!     print *,'MAX_RHO',maxval(rho_c)
+     print *,'MIN_RHO',minval(rho_c)
+     print *,'MAX_RHO',maxval(rho_c)
 #endif
 
-!$OMP END PARALLEL
+!$OMP END PARALLEL 
 
 contains
 
@@ -160,7 +160,7 @@ SUBROUTINE baroclinic_pressure_gradient_3D
   real(kind=WP)   :: qd_up, qd_low
   real(kind=WP)   :: acc, acc_to_Bp_bz, accJe_inv
 
-!$OMP DO
+!$OMP DO 
   DO elem=1,myDim_elem2D
 
      elnodes=elem2D_nodes(:,elem)
@@ -192,13 +192,6 @@ SUBROUTINE baroclinic_pressure_gradient_3D
                         ! Replaced it by direct calculation
 
      END DO
-     !Bar_pru_3D=Bar_pru_3D*0.0_WP
-     !Bar_prv_3D=Bar_prv_3D*0.0_WP
-
-!     if (time_jd-time_jd0<30.0_WP) then
-!        Bar_pru_3D=Bar_pru_3D*(time_jd-time_jd0)/30.0_WP
-!        Bar_prv_3D=Bar_prv_3D*(time_jd-time_jd0)/30.0_WP
-!     end if
 
      ! baroclinic_pressure_gradient_2D (inlined from subroutine)
      Bar_pr_2D(1,elem) = sum(Bar_pru_3D(1:nsigma-1,elem)*Je(1:nsigma-1,elem))
@@ -240,7 +233,7 @@ SUBROUTINE baroclinic_pressure_gradient_3D_clim
   real(kind=WP)   :: qd_up, qd_low, qd_up_clim, qd_low_clim
   real(kind=WP)   :: acc, acc_to_Bp_bz, accJe_inv
 
-!$OMP DO
+!$OMP DO 
   DO elem=1,myDim_elem2D
 
      elnodes=elem2D_nodes(:,elem)
@@ -355,21 +348,21 @@ SUBROUTINE densityJM(t, s, pz, rho_out,con_ss)
   ! Ralph Timmermann, August 2005
   !---------------------------------------------------------------------------
 
-
+  
   real(kind=WP), intent(IN)       :: t,s,pz
-  real(kind=WP), intent(OUT) :: rho_out
+  real(kind=WP), intent(OUT) :: rho_out                 
   real(kind=WP)              :: rhopot, bulk, ss3
   real(kind=WP), intent(IN), optional   :: con_ss
 
   !compute secant bulk modulus
-
+  
   ! if (s.lt.0.) then
   !    write (*,*)'s<0 happens!',t,s
   !     stop
   !  endif
   !   rho_out=-0.25_WP*(t-10.0_WP)
   !   return
-
+  
   ss3 = sqrt(s*s*s)
 
   bulk = 19092.56_WP + t*(209.8925_WP 			&
@@ -429,7 +422,7 @@ function theta(s,t,p,pr)
   ! p=10000 decibars,pr=0 decibars
   !
   USE o_PARAM
-
+  
   implicit none
   real(kind=WP)	            :: theta, s, t, p, pr
   real(kind=WP) 		    :: h, xk, q
@@ -463,7 +456,7 @@ function atg(s,t,p)
   ! checkvalue: atg=3.255976e-4 c/dbar for s=40 (ipss-78),
   ! t=40 deg c,p0=10000 decibars
    USE o_PARAM
-
+ 
   implicit none
   real(kind=WP)      ::  atg, s, t, p, ds
 

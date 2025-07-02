@@ -2,7 +2,7 @@
 !   Input parameters and flags, which control the simulation                               |
 !==============================================================================|
 !VF, updated 02.09
-SUBROUTINE READ_DATA_RUN()
+SUBROUTINE READ_DATA_RUN()           
 USE o_MESH
 USE o_ARRAYS
 USE o_PARAM
@@ -25,8 +25,8 @@ use g_parsup
 !==============================================================================|
 
    FNAME = "./fv_run.dat"
-
-
+   
+   
 !==============================================================================|
 !   CASENAME                                         |
 !==============================================================================|
@@ -34,16 +34,16 @@ use g_parsup
    ISCAN = SCAN_FILE(TRIM(FNAME),"TITLE",CVAL = TITLE)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING TITLE: ',ISCAN
-     STOP
-   END IF
-
+     STOP 
+   END IF 
+   
 !------------------------------------------------------------------------------|
-!   Barotropic time step (dt_2d)
+!   Barotropic time step (dt_2d) 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(TRIM(FNAME),"dt_2D",FSCAL = dt_2D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING dt_2D: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
@@ -52,20 +52,20 @@ use g_parsup
    ISCAN = SCAN_FILE(FNAME,"dt",FSCAL = dt)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING dt: ',ISCAN
-     STOP
+     STOP 
    END IF
-
+   
 !------------------------------------------------------------------------------|
 !   Julian day (beginning of simulation period)
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(TRIM(FNAME),"JD0",FSCAL = Time_jd0)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING JD0: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF   
 
 !------------------------------------------------------------------------------|
-!  Type of coordinates
+!  Type of coordinates   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(TRIM(FNAME),"cartesian",LVAL = cartesian)
    IF(ISCAN /= 0)THEN
@@ -75,76 +75,76 @@ use g_parsup
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "cartesian" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
-!   Total number of barotropic steps
+!   Total number of barotropic steps 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"nsteps",ISCAL = nsteps)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING nsteps: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "INDIR"
+!     "INDIR"             
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"INDIR",CVAL = INDIR)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING INDIR: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
-!     "MESHPATH"
+!     "MESHPATH"             
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"MESHPATH",CVAL = MESHPATH)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING MESHPATH: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
-!     "OUTDIR"
+!     "OUTDIR"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"OUTDIR",CVAL = OUTDIR)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING OUTDIR: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
-!     "IREP"
+!     "IREP" 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"IREP",ISCAL = IREP)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING IREP: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
-!     "IREC"
+!     "IREC"                                  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"IREC",ISCAL = IREC)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING IREC: ',ISCAN
-     STOP
+     STOP 
    END IF
-
+   
 !------------------------------------------------------------------------------|
 !     "IRESTART"
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"IRESTART",ISCAL = IRESTART)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING IRESTART: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
 !------------------------------------------------------------------------------|
 !     "RESTART"
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"RESTART",CVAL = RESTARTC)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING RESTART: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
 !------------------------------------------------------------------------------|
 !     "VERBOSITY"
 !------------------------------------------------------------------------------|
@@ -154,7 +154,7 @@ use g_parsup
      iverbosity = 1
    ELSEIF (iverbosity < 0 ) THEN
      WRITE(*,*)'VERBOSITY TO SMALL, ADJUSTING TO VERBOSITY=0 '
-     iverbosity = 0
+     iverbosity = 0    
    ENDIF
 !------------------------------------------------------------------------------|
 !     "mom_adv_2D"
@@ -162,7 +162,7 @@ use g_parsup
    ISCAN = SCAN_FILE(FNAME,"mom_adv_2D",ISCAL = mom_adv_2D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING mom_adv_2D: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
 !     "mom_adv_3D"
@@ -170,12 +170,12 @@ use g_parsup
    ISCAN = SCAN_FILE(FNAME,"mom_adv_3D",ISCAL = mom_adv_3D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING mom_adv_3D: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF   
 
 
 !------------------------------------------------------------------------------|
-!     "tracer_adv"
+!     "tracer_adv" 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"tracer_adv",ISCAL = tracer_adv)
    IF(ISCAN /= 0)THEN
@@ -189,7 +189,7 @@ if (tracer_adv==3) then
    ISCAN = SCAN_FILE(TRIM(FNAME),"mu_w",FSCAL = mu_w)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING mu_w: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
 !     "up_w" - weight for upwind scheme
@@ -197,12 +197,12 @@ if (tracer_adv==3) then
    ISCAN = SCAN_FILE(TRIM(FNAME),"up_w",FSCAL = up_w)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING up_w: ',ISCAN
-     STOP
+     STOP 
    END IF
 if (.not.((up_w+mu_w)==1.0_WP)) WRITE(*,*)'up_w+mu_w should be equal 1. ', up_w+mu_w
 END IF
 !------------------------------------------------------------------------------|
-!     "vert_adv"
+!     "vert_adv" 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"vert_adv",ISCAL = vert_adv)
    IF(ISCAN /= 0)THEN
@@ -210,7 +210,7 @@ END IF
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "ex_vert_visc"
+!     "ex_vert_visc" 
 !------------------------------------------------------------------------------|
     ISCAN = SCAN_FILE(TRIM(FNAME),"ex_vert_visc",LVAL = ex_vert_visc)
    IF(ISCAN /= 0)THEN
@@ -220,10 +220,10 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "ex_vert_visc" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
 
 !------------------------------------------------------------------------------|
-!     "im_vert_visc"
+!     "im_vert_visc" 
 !------------------------------------------------------------------------------|
     ISCAN = SCAN_FILE(TRIM(FNAME),"im_vert_visc",LVAL = im_vert_visc)
    IF(ISCAN /= 0)THEN
@@ -233,10 +233,10 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "im_vert_visc" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
 
 !------------------------------------------------------------------------------|
-!     "im_vert_visc_fic"
+!     "im_vert_visc_fic" 
 !------------------------------------------------------------------------------|
     ISCAN = SCAN_FILE(TRIM(FNAME),"im_vert_visc_fic",LVAL = im_vert_visc_fic)
    IF(ISCAN /= 0)THEN
@@ -246,15 +246,15 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "im_vert_visc_fic" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
 
 !------------------------------------------------------------------------------|
-!     "Cd"
+!     "Cd"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Cd",FSCAL = C_d)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING Cd: ',ISCAN
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
@@ -263,12 +263,12 @@ END IF
    ISCAN = SCAN_FILE(FNAME,"BFC",ISCAL = BFC)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING BFC: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
    if ((BFC/=1).and.(BFC/=2).and.(BFC/=3)) then
      WRITE(*,*)'ERROR READING BFC, it should be 1 or 2 or 3: ',BFC
-     STOP
-   END IF
+     STOP 
+   END IF 
 
 
 !------------------------------------------------------------------------------|
@@ -277,47 +277,40 @@ END IF
    ISCAN = SCAN_FILE(FNAME,"fic_point",ISCAL = fic_point)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING fic_point: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
    if ((fic_point<0).or.(fic_point>2)) then
      WRITE(*,*)'ERROR READING fic_point, it should be 0,1 or 2: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
 !------------------------------------------------------------------------------|
-!     "z0b_min"
+!     "z0b_min"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"z0b_min",FSCAL = z0b_min)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING z0b_min: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "z0s_min"
+!     "z0s_min"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"z0s_min",FSCAL = z0s_min)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING z0s_min: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "za"
+!     "za"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"za",FSCAL = za)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING za: ',ISCAN
-     STOP
-   END IF
-!------------------------------------------------------------------------------|
-!     "tau_inv"
-!------------------------------------------------------------------------------|
-   ISCAN = SCAN_FILE(FNAME,"tau_inv_filt",FSCAL = tau_inv_filt)
-   IF(ISCAN /= 0)THEN
-     WRITE(*,*)'ERROR READING tau_inv: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF   
 
+   
 !------------------------------------------------------------------------------|
-!     "Abh0"
+!     "Abh0"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Abh0",FSCAL = Abh0)
    IF(ISCAN /= 0)THEN
@@ -325,7 +318,7 @@ END IF
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "C_Smag"
+!     "C_Smag"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"C_Smag",FSCAL = C_Smag)
    IF(ISCAN /= 0)THEN
@@ -333,7 +326,7 @@ END IF
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "tau_c"
+!     "tau_c"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"tau_c",FSCAL = tau_c)
    IF(ISCAN /= 0)THEN
@@ -341,13 +334,13 @@ END IF
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "snul"
+!     "snul"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"snul",FSCAL = snul)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING snul: ',ISCAN
      STOP
-   END IF
+   END IF   
      ISCAN = SCAN_FILE(TRIM(FNAME),"filt_2D",LVAL = filt_2D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING filt_2D: ',ISCAN
@@ -356,7 +349,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "filt_2D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF   
         ISCAN = SCAN_FILE(TRIM(FNAME),"filt_bi_2D",LVAL = filt_bi_2D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING filt_bi_2D: ',ISCAN
@@ -365,7 +358,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "filt_bi_2D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
            ISCAN = SCAN_FILE(TRIM(FNAME),"bih_2D",LVAL = bih_2D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING bih_2D: ',ISCAN
@@ -374,7 +367,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "bih_2D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
    ISCAN = SCAN_FILE(TRIM(FNAME),"filt_3D",LVAL = filt_3D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING filt_3D: ',ISCAN
@@ -383,7 +376,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "filt_3D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF   
         ISCAN = SCAN_FILE(TRIM(FNAME),"filt_bi_3D",LVAL = filt_bi_3D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING filt_bi_3D: ',ISCAN
@@ -392,7 +385,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "filt_bi_3D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
            ISCAN = SCAN_FILE(TRIM(FNAME),"bih_3D",LVAL = bih_3D)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING bih_3D: ',ISCAN
@@ -401,7 +394,7 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "bih_3D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF 
 
 
 !------------------------------------------------------------------------------|
@@ -416,7 +409,7 @@ END IF
      END IF
      STOP
    END IF
-
+   
 !------------------------------------------------------------------------------|
 !  BAROTROPIC_3D FLAG
 !------------------------------------------------------------------------------|
@@ -429,10 +422,10 @@ END IF
        WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "BAROTROPIC_3D" TO INPUT FILE'
      END IF
      STOP
-   END IF
+   END IF  
 
 !------------------------------------------------------------------------------|
-!  TEMP_ON
+!  TEMP_ON        
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(TRIM(FNAME),"TEMP_ON",LVAL = TEMP_ON)
    IF(ISCAN /= 0)THEN
@@ -443,9 +436,9 @@ END IF
      END IF
      STOP
    END IF
-
+                                                                                                                        
 !------------------------------------------------------------------------------|
-!  SALINITY_ON
+!  SALINITY_ON 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(TRIM(FNAME),"SALINITY_ON",LVAL = SALINITY_ON)
    IF(ISCAN /= 0)THEN
@@ -456,24 +449,24 @@ END IF
      END IF
      STOP
    END IF
-
+   
 !------------------------------------------------------------------------------|
-!     "S_const"
+!     "S_const"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"S_const",FSCAL = S_const)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING S_const: ',ISCAN
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
-!     "T_const"
+!     "T_const"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_const",FSCAL = T_const)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING T_const: ',ISCAN
      STOP
-   END IF
-
+   END IF      
+ 
 !------------------------------------------------------------------------------|
 !  Coriolis_TF
 !------------------------------------------------------------------------------|
@@ -501,24 +494,24 @@ if (cartesian) then
 lat_cartesian=lat_cartesian*pi/180.0_WP
 endif
 !------------------------------------------------------------------------------|
-!     "type_vd"
+!     "type_vd"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"type_vd",CVAL = type_vd)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING type_vert_dis: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF 
 !------------------------------------------------------------------------------|
-!     "nsigma"
+!     "nsigma" 
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"nsigma",ISCAL = nsigma)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING nsigma: ',ISCAN
      STOP
-   END IF
-
+   END IF     
+   
 !------------------------------------------------------------------------------|
-!     "ind_sigma"
+!     "ind_sigma"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"ind_sigma",ISCAL = ind_sigma)
    IF(ISCAN /= 0)THEN
@@ -551,7 +544,7 @@ endif
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "KSw"
+!     "KSw"  
 !------------------------------------------------------------------------------|
 
      ISCAN = SCAN_FILE(FNAME,"KSw",FVEC = REALVEC,NSZE = KTEMP)
@@ -567,10 +560,10 @@ endif
 	 ALLOCATE(KSw(KTEMP)); KSw=0.0_WP
      KSw(1:KTEMP)= REALVEC(1:KTEMP)
 	 endif
-
-
+   
+	
 !------------------------------------------------------------------------------|
-!      "Kbw"
+!      "Kbw" 
 !------------------------------------------------------------------------------|
      ISCAN = SCAN_FILE(FNAME,"KBw",FVEC = REALVEC,NSZE = KTEMP)
      IF(ISCAN /= 0)THEN
@@ -585,9 +578,9 @@ endif
 	 ALLOCATE(KBw(KTEMP))
      KBw(1:KTEMP)= REALVEC(1:KTEMP)
 	 endif
-
+	 
 !------------------------------------------------------------------------------|
-!     "D_ref_max"
+!     "D_ref_max"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"D_ref_max",FSCAL = D_ref_max)
    IF(ISCAN /= 0)THEN
@@ -595,24 +588,114 @@ endif
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!     "Vert_turb"
+!     "Vert_turb"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Vert_turb",ISCAL = ver_mix)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING Vert_turb: ',ISCAN
+     STOP 
+   END IF
+!------------------------------------------------------------------------------|
+!  Rivers presence
+!------------------------------------------------------------------------------|
+riv_control=.FALSE.
+riv_control_ob=.FALSE.
+   ISCAN = SCAN_FILE(TRIM(FNAME),"Riv",LVAL = riv)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING riv: ',ISCAN
+     IF(ISCAN == -2)THEN
+       WRITE(*,*)'VARIABLE NOT FOUND IN INPUT FILE: ',TRIM(FNAME)
+       WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "Riv" TO INPUT FILE'
+     END IF
      STOP
    END IF
 !------------------------------------------------------------------------------|
-!  Rivers
+!     "Time_riv_begin"     
 !------------------------------------------------------------------------------|
-   ISCAN = SCAN_FILE(TRIM(FNAME),"key_rivers",LVAL = key_rivers)
+   ISCAN = SCAN_FILE(FNAME,"Time_riv_begin",FSCAL = Time_riv_begin)
+   IF(ISCAN /= 0) THEN
+     WRITE(*,*)'ERROR READING Time_riv_begin: ',ISCAN
+     STOP
+   END IF 
+
+!------------------------------------------------------------------------------|
+!  Is stratification in the mouth area known?
+!------------------------------------------------------------------------------|
+
+   ISCAN = SCAN_FILE(TRIM(FNAME),"Stratif_sigma",LVAL = Stratif_sigma)
    IF(ISCAN /= 0)THEN
-     WRITE(*,*)'ERROR READING key_rivers: ',ISCAN
+     WRITE(*,*)'ERROR READING Stratif_sigma: ',ISCAN
+     IF(ISCAN == -2)THEN
+       WRITE(*,*)'VARIABLE NOT FOUND IN INPUT FILE: ',TRIM(FNAME)
+       WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "Stratif_sigma" TO INPUT FILE'
+     END IF
+     STOP
+   END IF  
+
+!------------------------------------------------------------------------------|
+! Is discharge distribution in the mouth area known?       
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(TRIM(FNAME),"Q_sigma",LVAL = Q_sigma)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING Q_sigma: ',ISCAN
+     IF(ISCAN == -2)THEN
+       WRITE(*,*)'VARIABLE NOT FOUND IN INPUT FILE: ',TRIM(FNAME)
+       WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "Q_sigma" TO INPUT FILE'
+     END IF
      STOP
    END IF
 
+                                                                                                                      
 !------------------------------------------------------------------------------|
-!     "cyclic_length"
+!  Do you want to treat river mouth as an open boundary?
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(TRIM(FNAME),"Riv_OB",LVAL = riv_OB)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING riv_OB: ',ISCAN
+     IF(ISCAN == -2)THEN
+       WRITE(*,*)'VARIABLE NOT FOUND IN INPUT FILE: ',TRIM(FNAME)
+       WRITE(*,*)'PLEASE ADD LOGICAL (T/F) VARIABLE "riv_OB" TO INPUT FILE'
+     END IF
+     STOP
+   END IF
+
+IF (riv) THEN
+   riv_control=.TRUE.
+END IF
+
+if (riv_OB) then
+!------------------------------------------------------------------------------|
+!     "riv_relax"     
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"riv_relax",FSCAL = riv_relax)
+   IF(ISCAN /= 0) THEN
+     WRITE(*,*)'ERROR READING riv_relax: ',ISCAN
+     STOP
+   END IF 
+riv_relax=1/(riv_relax*3600.0_WP*24.0_WP)
+!------------------------------------------------------------------------------|
+!     "relax2riv"     
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"relax2riv",FSCAL = relax2riv)
+   IF(ISCAN /= 0) THEN
+     WRITE(*,*)'ERROR READING relax2riv: ',ISCAN
+     STOP
+   END IF 
+relax2riv=1/(relax2riv*3600.0_WP*24.0_WP)
+!------------------------------------------------------------------------------|
+!     "Time_riv_begin"     
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"Time_riv_begin",FSCAL = Time_riv_begin)
+   IF(ISCAN /= 0) THEN
+     WRITE(*,*)'ERROR READING Time_riv_begin: ',ISCAN
+     STOP
+   END IF 
+riv_control_ob=.TRUE.
+endif
+
+
+!------------------------------------------------------------------------------|
+!     "cyclic_length"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"cyclic_length",FSCAL = cyclic_length)
    IF((ISCAN /= 0).or. (cyclic_length>360).or. (cyclic_length<=0)) THEN
@@ -621,21 +704,21 @@ endif
    END IF
    cyclic_length=cyclic_length*rad
 !------------------------------------------------------------------------------|
-!     "Dcr"
+!     "Dcr"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Dcr",FSCAL = Dcr)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING Dcr: ',ISCAN
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
-!     "Dmin"
+!     "Dmin"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Dmin",FSCAL = Dmin)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING Dmin: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
 !     "TF_presence" - turn on (T), turn off (F) tidal forcing
 !------------------------------------------------------------------------------|
@@ -643,17 +726,29 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING TF: ',ISCAN
      STOP
+   END IF   
+   
+   If (TF_presence) THEN
+!------------------------------------------------------------------------------|
+!     "Time_tf"   !!CONTROLS TIDAL FORCING 
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"Time_tf",CVAL = Time_tf)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING Time_tf: ',ISCAN
+     STOP 
    END IF
+   end if 
+   
 
 !------------------------------------------------------------------------------|
-!     "T_potential"
+!     "T_potential"   
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_potential",LVAL = T_potential)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_potential: ',ISCAN
-     STOP
+     STOP 
    END IF
-
+   
  If ((TF_presence).or.(T_potential)) THEN
 !------------------------------------------------------------------------------|
 !     "Harmonics_tf"
@@ -669,7 +764,7 @@ endif
      STOP
    end if
    allocate(Harmonics_tf(NOUT_VARS))
-   Harmonics_tf(1:NOUT_VARS)= STRINGVEC(1:NOUT_VARS)
+   Harmonics_tf(1:NOUT_VARS)= STRINGVEC(1:NOUT_VARS)  
 n_th=0
 do i=1,NOUT_VARS
 do j=1,12
@@ -682,14 +777,14 @@ end do
 end do
 
 !write(*,*) a_th
-endif
+endif	
 !------------------------------------------------------------------------------|
 !     "T_out"   !!CONTROLS TIDAL OUTPUT
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_out",LVAL = T_out)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_out: ',ISCAN
-     STOP
+     STOP 
    END IF
    if (T_out) then
 !------------------------------------------------------------------------------|
@@ -698,199 +793,218 @@ endif
    ISCAN = SCAN_FILE(FNAME,"T_out_el_va",LVAL = T_out_el_va)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_out_el_va: ',ISCAN
-     STOP
+     STOP 
    END IF
-
+   
 !------------------------------------------------------------------------------|
 !     "T_out_3Dvel"   !!CONTROLS TIDAL OUTPUT
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_out_3Dvel",LVAL = T_out_3Dvel)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_out_3Dvel: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF  
    If ((T_out).and.(.not.(T_out_el_va)).and.(.not.(T_out_3Dvel))) then
         WRITE(*,*)'T_out is T, but there is no value for output'
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "T_period"
+!     "T_period"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_period",FSCAL = T_period)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING T_period: ',ISCAN
      STOP
-   END IF
-
+   END IF 
+  
 !------------------------------------------------------------------------------|
-!     "T_step"
+!     "T_step"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_step",FSCAL = T_step)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING T_step: ',ISCAN
      STOP
-   END IF
-
+   END IF 
+   
 !------------------------------------------------------------------------------|
-!     "T_aval"
+!     "T_aval"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_aval",ISCAL = T_aval)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_aval: ',ISCAN
      STOP
    END IF
-
+      
 !------------------------------------------------------------------------------|
-!     "T_num"
+!     "T_num"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"T_num",ISCAL = T_num)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING T_num: ',ISCAN
      STOP
    END IF
-
+   
    If (mod(real(T_period*3600.0_WP/(T_aval*T_step)),1.0_WP)/= 0.0_WP) then
         WRITE(*,*)'T_step/T_period*3600/(T_aval*i)', T_period*3600.0_WP/(real(T_aval)*T_step)
-     STOP
+     STOP 
    END IF
 endif
 !------------------------------------------------------------------------------|
-!     "key_nc_output"
+!     "key_nc_output"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"key_nc_output",LVAL = key_nc_output)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING key_nc_output: ',ISCAN
-     STOP
-   END IF
+     STOP 
+   END IF   
 !------------------------------------------------------------------------------|
-!     "key_atm"
+!     "key_atm"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"key_atm",LVAL = key_atm)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING key_atm: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "key_obc"
+!     "key_obc"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"key_obc",LVAL = key_obc)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING key_obc: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "key_ic"
+!     "kety_obc_2d"  
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"key_obc_2d",LVAL = key_obc_2d)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING key_obc_2d: ',ISCAN
+     STOP 
+   END IF
+!------------------------------------------------------------------------------|
+!     "key_ic"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"key_ic",LVAL = key_ic)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING key_ic: ',ISCAN
-     STOP
-   END IF
-
+     STOP 
+   END IF   
 !------------------------------------------------------------------------------|
-!     "type_swr_body"
+!     "Atm_pr"  
+!------------------------------------------------------------------------------|
+   ISCAN = SCAN_FILE(FNAME,"Atm_pr",ISCAL = atm_pr)
+   IF(ISCAN /= 0)THEN
+     WRITE(*,*)'ERROR READING Atm_pr: ',ISCAN
+     STOP 
+   END IF
+If ((.not.(Atm_pr==0)).and.(.not.(Atm_pr==1))) then
+     WRITE(*,*)'Atm_pr should be 0 or 1: ',Atm_pr
+     STOP 
+  END IF
+!------------------------------------------------------------------------------|
+!     "type_swr_body"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"type_swr_body",ISCAL = type_swr_body)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING type_swr_body: ',ISCAN
      STOP
    END IF
-
+   
    If ((.not.(type_swr_body==1)).and.(.not.(type_swr_body==2))) then
         WRITE(*,*)'type_swr_body should be 1 or 2'
-     STOP
+     STOP 
    END IF
 
 !------------------------------------------------------------------------------|
-!     "swr_bot_refl_part"
+!     "swr_bot_refl_part"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"swr_bot_refl_part",FSCAL = swr_bot_refl_part)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING swr_bot_refl_part: ',ISCAN
      STOP
-   END IF
+   END IF 
    If ((swr_bot_refl_part>1.0_WP).or.(swr_bot_refl_part<0.0_WP)) then
         WRITE(*,*)'swr_bot_refl_part should be between 0 and 1'
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "swr_bot_refl_part"
+!     "swr_bot_refl_part"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"swr_bot_min",FSCAL = swr_bot_min)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING swr_bot_min: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
-!     "jer_const"
+!     "jer_const"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"jer_const",LVAL = jer_const)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING jer_const: ',ISCAN
-     STOP
+     STOP 
    END IF
 if (jer_const) then
 !------------------------------------------------------------------------------|
-!     "R"
+!     "R"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"R",FSCAL = Rjc)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING R: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
-!     "a"
+!     "a"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"a",FSCAL = ajc)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING a: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
-!     "b"
+!     "b"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"b",FSCAL = bjc)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING a: ',ISCAN
      STOP
-   END IF
+   END IF 
 
 endif
 !------------------------------------------------------------------------------|
-!     "cl_solid_boder_relax"
+!     "cl_solid_boder_relax"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"cl_solid_boder_relax",LVAL = cl_solid_boder_relax)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING cl_solid_boder_relax: ',ISCAN
-     STOP
+     STOP 
    END IF
 !------------------------------------------------------------------------------|
-!     "cl_relax"
+!     "cl_relax"  
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"cl_relax",LVAL = cl_relax)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING cl_relax: ',ISCAN
-     STOP
+     STOP 
    END IF
 if (cl_relax) then
 !------------------------------------------------------------------------------|
-!     "clim_relax"
+!     "clim_relax"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"clim_relax",FSCAL = clim_relax)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING clim_relax: ',ISCAN
      STOP
-   END IF
+   END IF 
  clim_relax=1.0_WP/(clim_relax*3600.0_WP*24.0_WP)
-!write(*,*) 'clim_relax',clim_relax
+write(*,*) 'clim_relax',clim_relax
 !------------------------------------------------------------------------------|
-!     "relax2clim_ac"
+!     "relax2clim_ac"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"relax2clim_ac",FSCAL = relax2clim_ac)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING relax2clim_ac: ',ISCAN
      STOP
-   END IF
+   END IF 
  relax2clim_ac=1.0_WP/(relax2clim_ac*3600.0_WP*24.0_WP)
 
 endif
@@ -904,7 +1018,7 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING WET_DRY_ON: ',ISCAN
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
 !     "OB_nudg" -Temp/Salt Series Nudging
 !------------------------------------------------------------------------------|
@@ -912,8 +1026,8 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING OB_nudg: ',ISCAN
      STOP
-   END IF
-
+   END IF  
+   
 !------------------------------------------------------------------------------|
 ! obn stability regulation
 !------------------------------------------------------------------------------|
@@ -921,44 +1035,44 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING mixed_BP_grad_OB: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
-!     "Cd_bz"
+!     "Cd_bz"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Cd_bz",FSCAL = Cd_bz)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING Cd_bz: ',ISCAN
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
-!     "Bp_bz"
+!     "Bp_bz"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"Bp_bz",FSCAL = Bp_bz)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING Bp_bz: ',ISCAN
      STOP
-   END IF
-
+   END IF 
+   
    if (OB_nudg) then
    !------------------------------------------------------------------------------|
-!     "ALPHA_nudg"
+!     "ALPHA_nudg"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"ALPHA_nudg",FSCAL = ALPHA_nudg)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING ALPHA_nudg: ',ISCAN
      STOP
-   END IF
+   END IF   
 !------------------------------------------------------------------------------|
-!     "RADIUS"
+!     "RADIUS"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"RADIUS",FSCAL = RADIUS)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING RADIUS: ',ISCAN
      STOP
-   END IF
-
+   END IF 
+   
    endif
-
+   
 !------------------------------------------------------------------------------|
 !     "Sponge layer"
 !------------------------------------------------------------------------------|
@@ -966,7 +1080,7 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING SL_obn: ',ISCAN
      STOP
-   END IF
+   END IF 
 !------------------------------------------------------------------------------|
 !     "Sponge layer, user defined"
 !------------------------------------------------------------------------------|
@@ -974,23 +1088,23 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING SP_obn_user_def: ',ISCAN
      STOP
-   END IF
+   END IF     
    if (SL_obn_user_def) then
    if (.not.(SL_obn)) then
    WRITE(*,*)'ERROR, SL_obn_user_def - true, but SL_obn - false: '
    endif
    endif
    if (SL_obn) then
-
+  
 !------------------------------------------------------------------------------|
-!     "Sponge layer radius"
+!     "Sponge layer radius"     
 !------------------------------------------------------------------------------|
    ISCAN = SCAN_FILE(FNAME,"SL_radius",FSCAL = SL_radius)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING SL_radius: ',ISCAN
      STOP
-   END IF
-
+   END IF 
+   
    endif
 !------------------------------------------------------------------------------|
 !     "Sediments"
@@ -999,14 +1113,14 @@ endif
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING comp_sediment: ',ISCAN
      STOP
-   END IF
+   END IF     
    if (comp_sediment) then
 
    ISCAN = SCAN_FILE(TRIM(FNAME),"sed_boun_flux",LVAL = sed_boun_flux)
    IF(ISCAN /= 0)THEN
      WRITE(*,*)'ERROR READING sed_boun_flux: ',ISCAN
      STOP
-   END IF
+   END IF  
 
    ISCAN = SCAN_FILE(TRIM(FNAME),"cl_relax_sed",LVAL = cl_relax_sed)
    IF(ISCAN /= 0)THEN
@@ -1020,13 +1134,13 @@ endif
    IF(ISCAN /= 0) THEN
    WRITE(*,*)'ERROR READING sed_relax: ',ISCAN
    STOP
-   END IF
+   END IF 
    sed_relax=1/(sed_relax*3600.0_WP*24.0_WP)
    ISCAN = SCAN_FILE(FNAME,"relax2sed",FSCAL = relax2sed)
    IF(ISCAN /= 0) THEN
    WRITE(*,*)'ERROR READING relax2sed: ',ISCAN
    STOP
-   END IF
+   END IF 
    relax2sed=1/(relax2sed*3600.0_WP*24.0_WP)
 
   endif
@@ -1035,22 +1149,22 @@ endif
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING d_m: ',ISCAN
      STOP
-   END IF
+   END IF 
    ISCAN = SCAN_FILE(FNAME,"plop_s",FSCAL = plop_s)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING plop_s: ',ISCAN
      STOP
-   END IF
+   END IF 
    ISCAN = SCAN_FILE(FNAME,"e_p",FSCAL = e_p)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING e_p: ',ISCAN
      STOP
-   END IF
+   END IF 
    ISCAN = SCAN_FILE(FNAME,"Er0",FSCAL = Er0)
    IF(ISCAN /= 0) THEN
      WRITE(*,*)'ERROR READING Er0: ',ISCAN
      STOP
-   END IF
+   END IF 
    endif
 
 !==============================================================================|
@@ -1060,7 +1174,7 @@ endif
    Mt=int(dt/dt_2D)
    ini_time=1.0
    DAYS=NSTEPS*dt/24.0_WP/3600.0_WP
-
+   
 
 !==============================================================================|
 !            ERROR CHECKING                                                    !
@@ -1068,17 +1182,17 @@ endif
 
 
    IF(trim(RESTARTC) /= 'cold_start' .AND. trim(RESTARTC) /= 'hot_start')THEN
-     WRITE(*,*) 'RESTART NOT CORRECT --->',RESTARTC
+     WRITE(*,*) 'RESTART NOT CORRECT --->',RESTARTC   
      WRITE(*,*) 'SHOULD BE "cold_start" or "hot_start"'
      STOP
    END IF
-
-   IF (trim(RESTARTC)=='cold_start') then
+   
+   IF (trim(RESTARTC)=='cold_start') then 
    RESTART=.false.
    else
    RESTART=.true.
    endif
-
+   
    IF(trim(type_vd) /= 'sigma') THEN
      WRITE(*,*) 'type_vert_dis is not correct --->',type_vd
      WRITE(*,*) 'SHOULD BE "sigma"'
@@ -1088,26 +1202,33 @@ endif
  !  IF(WINDTYPE /= 'stress' .AND. WINDTYPE /= 'speed') THEN
  !    WRITE(*,*) 'WINDTYPE NOT CORRECT,--->',WINDTYPE
  !    WRITE(*,*) 'SHOULD BE "stress" or "speed"'
- !    STOP
+ !    STOP 
  !  END IF
  !  IF(M_TYPE /= 'uniform' .AND. M_TYPE /= 'non-uniform') THEN
  !    WRITE(*,*) 'M_TYPE NOT CORRECT,--->',M_TYPE
  !    WRITE(*,*) 'SHOULD BE "uniform" or "non-uniform"'
- !    STOP
+ !    STOP 
  !  END IF
+ If (TF_presence) THEN
+   IF(Time_tf /= 'julian' .AND. Time_tf /= 'non-julian') THEN
+     WRITE(*,*) 'Time_tf NOT CORRECT,--->',Time_tf
+     WRITE(*,*) 'SHOULD BE "julian" or "non-julian"'
+     STOP 
+   END IF
+   endif
    IF(ver_mix<1 .AND. ver_mix<3) THEN
      WRITE(*,*) 'Vert_turb NOT CORRECT,--->',ver_mix
      WRITE(*,*) 'SHOULD BE "1", "2" or "3" '
-     STOP
+     STOP 
    END IF
  !  IF(H_TYPE /= 'body_h' .AND. H_TYPE /= 'flux_h') THEN
  !    WRITE(*,*) 'H_TYPE NOT CORRECT,--->',H_TYPE
  !    WRITE(*,*) 'SHOULD BE "body_h" or "flux_h"'
- !    STOP
+ !    STOP 
  !  END IF
 
   ! =========================================================================
-  ! Inizialize type of task (barotropic 2D, barotropic 3D, baroclinic......)
+  ! Inizialize type of task (barotropic 2D, barotropic 3D, baroclinic......) 
   !==========================================================================
   type_task=0
   if (Barotropic) then
@@ -1131,7 +1252,7 @@ endif
   !==============================================================================|
 
   if (mype==0) then
-     if (cartesian) then
+     if (cartesian) then 
         WRITE(*,*)'!  # Type of the coordinates             : cartesian '
      else
         WRITE(*,*)'!  # Type of the coordinates             : spherical '
@@ -1142,9 +1263,9 @@ endif
      WRITE(*,*)'!  # A_hor                               : ',A_hor
      WRITE(*,*)'!  # Min_depth                           : ',Dmin
      if (BFC/=2) then
-        WRITE(*,*)'!  # Cd                                  : ',C_d
+        WRITE(*,*)'!  # Cd                                  : ',C_d   
      else
-        WRITE(*,*)'!  # Z0                                  : ', z0b_min +  za
+        WRITE(*,*)'!  # Z0                                  : ', z0b_min +  za 
      endif
      WRITE(*,*)'!  # surface roughness height(min value) : ',z0s_min
      WRITE(*,*)'!  # bottom roughness height(min value)  : ',z0b_min
@@ -1159,13 +1280,14 @@ endif
      endif
      if (TF_presence) then
         WRITE(*,*)'!  # Harmonics_tf                        : ', Harmonics_tf
+        WRITE(*,*)'!  # Time_tf                             : ', TRIM(Time_tf)
      endif
-     if (T_potential) then
+     if (T_potential) then   
         WRITE(*,*)'!  # Tidal potential                     : Activated'
      endif
-     WRITE(*,*)'!  # IRESTART                            : ',IRESTART
-     WRITE(*,*)'!  # Ireport                             : ',IREP
-     WRITE(*,*)'!  # Irecord                             : ',IREC
+     WRITE(*,*)'!  # IRESTART                            : ',IRESTART   
+     WRITE(*,*)'!  # Ireport                             : ',IREP   
+     WRITE(*,*)'!  # Irecord                             : ',IREC     
      WRITE(*,*)'!  # CASE TITLE                          : ',trim(TITLE)
      WRITE(*,*)'!  # OUTDIR                              : ',trim(OUTDIR)
      WRITE(*,*)'!  # MESHPATH                            : ',trim(MESHPATH)
@@ -1218,6 +1340,6 @@ endif
      endif
   end if
   RETURN
-
-END SUBROUTINE READ_DATA_RUN
+ 
+END SUBROUTINE READ_DATA_RUN    
 

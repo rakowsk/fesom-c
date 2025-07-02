@@ -1,8 +1,8 @@
-! Driving routine. The distributed mesh information and mesh proper
+! Driving routine. The distributed mesh information and mesh proper 
 ! are read from files.
 ! Auxiliary arrays with mesh information are assembled.
 ! At the beginning of each routine I list arrays it initializes.
-! Array sizes vary (sometimes we need only myDim, yet sometimes more)!
+! Array sizes vary (sometimes we need only myDim, yet sometimes more)! 
 ! S. Danilov, 2012
 
 SUBROUTINE mesh_setup
@@ -33,7 +33,7 @@ SUBROUTINE read_mesh_par
   USE o_MESH
   USE o_ARRAYS
   USE g_PARSUP
-  USE g_rotate_grid
+  USE g_rotate_grid 
   use o_utilit
 
   use g_comm_auto
@@ -53,7 +53,7 @@ SUBROUTINE read_mesh_par
   integer, allocatable, dimension(:)        :: mapping
   integer, allocatable, dimension(:,:)      :: ibuff
   real(kind=WP), allocatable, dimension(:,:) :: rbuff
-  integer, allocatable, dimension(:,:)      :: auxbuff ! will be used for reading aux3d.out
+  integer, allocatable, dimension(:,:)      :: auxbuff ! will be used for reading aux3d.out 
 
   integer :: ioerror
   integer :: n_quad, ntri, nmb_nds_el
@@ -64,15 +64,15 @@ SUBROUTINE read_mesh_par
   chunk_size=100000
   !==============================
   ! Allocate mapping array (chunk_size)
-  ! It will be used for several purposes
+  ! It will be used for several purposes 
   !==============================
   allocate(mapping(chunk_size))
   allocate(ibuff(chunk_size,4), rbuff(chunk_size,3))
 
-  mapping=0
+  mapping=0 
   !==============================
   t0=MPI_Wtime()
-  write(mype_string,'(i5.5)') mype
+  write(mype_string,'(i5.5)') mype  
   write(npes_string,"(I10)") npes
   dist_mesh_dir=trim(meshpath)//'dist_'//trim(ADJUSTL(npes_string))//'/'
 
@@ -121,7 +121,7 @@ SUBROUTINE read_mesh_par
   if (mype==0) write(*,*) mype,'rpart is read'
 
   !===========================
-  ! Lists of nodes and elements in global indexing.
+  ! Lists of nodes and elements in global indexing. 
   ! every proc reads its file
   !===========================
 
@@ -133,7 +133,7 @@ SUBROUTINE read_mesh_par
 
   read(fileID,*) myDim_nod2D
   read(fileID,*) eDim_nod2D
-  allocate(myList_nod2D(myDim_nod2D+eDim_nod2D))
+  allocate(myList_nod2D(myDim_nod2D+eDim_nod2D)) 	 
   read(fileID,*) myList_nod2D
 
   read(fileID,*) myDim_elem2D
@@ -141,7 +141,7 @@ SUBROUTINE read_mesh_par
   read(fileID,*) eXDim_elem2D
   allocate(myList_elem2D(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
   read(fileID,*) myList_elem2D
-
+  
   read(fileID,*) myDim_edge2D
   read(fileID,*) eDim_edge2D
   allocate(myList_edge2D(myDim_edge2D+eDim_edge2D))
@@ -167,7 +167,7 @@ SUBROUTINE read_mesh_par
      nobn=0
 
      if (n/=nod2D) error_status=1 !set the error status for consistency between rpart and nod2D
-     write(*,*) 'reading '// trim(file_name)
+     write(*,*) 'reading '// trim(file_name)   
   end if
   ! check the error status
   call MPI_BCast(error_status, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
@@ -246,8 +246,13 @@ SUBROUTINE read_mesh_par
   do n=1,myDim_nod2D
      if (index_nod2D(n)==2) mynobn=mynobn+1
   end do
-!  print *,'PE: ',mype,' Local number of open boundary nodes: ',mynobn
-
+ !aa67 print *,'PE: ',mype,' Local number of open boundary nodes: ',mynobn
+     
+  !VF, create in_obn array with OBN indexes
+  ! MPI fields:
+  ! mynobn : local number of open boundary nodes
+  ! my_in_obn : field of local obn number
+  ! my_in_obn_idx : field of global indexes of open bnd. nodes
   if (mynobn>0) then
      allocate(my_in_obn(mynobn), my_in_obn_idx(mynobn))
      my_in_obn(:)=0; my_in_obn_idx(:)=0
@@ -259,15 +264,16 @@ SUBROUTINE read_mesh_par
         endif
      end do
   end if
+  ! The global indexes are set later on in the main program
 
   if (mynobn>0 .AND. ind/=mynobn) print *,'ATTENTION: boundary node discrepancy'
-!  if (mynobn>10) print *,'global nodes MY_IN_OBN(1:10):',mype,myList_nod2D(my_in_obn(1:10))
+  if (mynobn>10) print *,'global nodes MY_IN_OBN(1:10):',mype,myList_nod2D(my_in_obn(1:10))
 
   !==============================
   ! read 2d elem data
   !==============================
   ! read the elem2D from elem2d.out
-  if (mype==0)  then
+  if (mype==0)  then 
      file_name=trim(meshpath)//'elem2d.out'
      open(fileID, file=file_name)
      read(fileID,*) elem2d
@@ -284,13 +290,13 @@ SUBROUTINE read_mesh_par
      end if
      write(*,*) 'Number of nodes per element : ',nmb_nds_el
      deallocate(elem_data)
-
+     
      close(fileID)
-
+  
      !Re-open the file for further processing
      open(fileID, file=file_name)
      read(fileID,*) elem2d
-
+     
   end if
 
   call MPI_BCast(nmb_nds_el, 1, MPI_INTEGER, 0, MPI_COMM_FESOM_C, ierror)
@@ -345,7 +351,7 @@ SUBROUTINE read_mesh_par
 
   if (mype==0) close(fileID)
 
-!print *,'READING',mype,myDim_elem2D,eDim_elem2D,eXDim_elem2D
+!aa67 print *,'READING',mype,myDim_elem2D,eDim_elem2D,eXDim_elem2D
 
   ! nodes in elem2d are in global numbering. convert to local:
   do nchunk=0, (nod2D-1)/chunk_size
@@ -365,7 +371,7 @@ SUBROUTINE read_mesh_par
               iofs=nn-nchunk*chunk_size
               ! minus sign is required to avoid modified entry being modified in another chunk
               ! will be changed to plus at the end
-              elem2D_nodes(m,n)=-mapping(iofs)
+              elem2D_nodes(m,n)=-mapping(iofs) 
            end if
         end do
      end do
@@ -375,12 +381,12 @@ SUBROUTINE read_mesh_par
 
   ! Set vertical coordinates
   ! FESOM:   number of levels:  nl
-  !          array with levels: zbar
+  !          array with levels: zbar  
   !          read depth levels from file aux3d.out
   ! FESOM_C: Currently call SET_SIGMA:
   !          number of levels: nsigma
   !          array with levels: sigma
-
+  
 
   call SET_SIGMA
 
@@ -413,9 +419,9 @@ SUBROUTINE read_mesh_par
               read(22,*) rbuff(n,1)
            end do
 !SHTEST TOPOGRAPHY
-!do n=1,k
-!  if (rbuff(n,1)<10.0) rbuff(n,1)=10.0
-!end do
+!aa67 do n=1,k
+!aa67  if (rbuff(n,1)<10.0) rbuff(n,1)=10.0
+!aa67 end do
         end if
         call MPI_BCast(rbuff(1:k,1), k, MPI_DOUBLE_PRECISION, 0, MPI_COMM_FESOM_C, ierror)
 
@@ -439,22 +445,28 @@ SUBROUTINE read_mesh_par
 
   end if
 
-!do n=1,mydim_nod2D
-! if (index_nod2D(n)==2) print *,'DEPP',mype,myList_nod2D(n),depth(n)
-!end do
-!do n=1,mydim_nod2D
-! if (myList_nod2D(n)==3345)  print *,'KONTROLL',mype,n,myList_nod2D(n),depth(n)
-!end do
+  do n=1,mydim_nod2D
+     if (index_nod2D(n)==1) depth(n) = -15.0_WP
+  end do
 
-!  if (mype==0) print *,'DEPTH values are set.'
+!aa67 ----------------------------------------------------------------------------------
+
+
+#ifdef DEBUG
+  do n=1,mydim_nod2D
+     if (index_nod2D(n)==2) print *,'OPEN BND NODE CHECK',mype,myList_nod2D(n),depth(n)
+  end do
+#endif
+  
+  if (mype==0) print *,'DEPTH values are set.'
 
 
   ! ==============================
   ! Communication information
   ! every proc reads its file
   ! ==============================
-  file_name=trim(dist_mesh_dir)//'com_info'//trim(mype_string)//'.out'
-  fileID=10+mype
+  file_name=trim(dist_mesh_dir)//'com_info'//trim(mype_string)//'.out'  
+  fileID=10+mype  
   open(fileID, file=file_name)
   read(fileID,*)  n
   read(fileID,*) com_nod2D%rPEnum
@@ -539,7 +551,7 @@ SUBROUTINE read_mesh_par
 !!$ read(fileID,*) com_edge2D%rptr
 !!$ ALLOCATE(com_edge2D%rlist(eDim_edge2D))
 !!$ read(fileID,*) com_edge2D%rlist
-!!$
+!!$	 
 !!$ read(fileID,*) com_edge2D%sPEnum
 !!$ ALLOCATE(com_edge2D%sPE(com_edge2D%sPEnum))
 !!$ read(fileID,*) com_edge2D%sPE
@@ -565,4 +577,4 @@ SUBROUTINE read_mesh_par
   deallocate(mapping)
 
 END subroutine  read_mesh_par
-!============================================================
+!============================================================ 

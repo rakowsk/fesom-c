@@ -3,58 +3,12 @@
 MODULE o_UTILIT
 
 contains
-   SUBROUTINE binarysearch(length, array, value, ind)!, delta)
-      ! Given an array and a value, returns the index of the element that
-      ! is closest to, but less than, the given value.
-      ! Uses a binary search algorithm.
-      ! "delta" is the tolerance used to determine if two values are equal
-      ! if ( abs(x1 - x2) <= delta) then
-      !    assume x1 = x2
-      ! endif
-      !org. source from: https://github.com/cfinch/Shocksolution_Examples/blob/master/FORTRAN/BilinearInterpolation/interpolation.f90
-      USE o_PARAM
-      IMPLICIT NONE
-      integer,  intent(in) :: length
-      real(wp), dimension(length), intent(in) :: array
-      real(wp), intent(in) :: value
-   !   real, intent(in), optional :: delta
 
-   !   integer :: binarysearch
-      integer, intent(out) :: ind
-
-      integer :: left, middle, right
-      real(wp):: d
-
-   !   if (present(delta) .eqv. .true.) then
-   !      d = delta
-   !   else
-      d = 1e-9
-   !   endif
-      left = 1
-      right = length
-      do
-         if (left > right) then
-            exit
-         endif
-         middle = nint((left+right) / 2.0_WP)
-         if ( abs(array(middle) - value) <= d) then
-            ind = middle
-            return
-         else if (array(middle) > value) then
-            right = middle - 1
-         else
-            left = middle + 1
-         end if
-      end do
-      ind = right
-
-   END SUBROUTINE binarysearch
-
- FUNCTION Dist2in1(X1, X2)
+ FUNCTION Dist2in1(X1, X2)           
 
 !===================================================================================|
 !   This function calculates the distance from point(X1,X2) to the open boundary    |
-!   or any other curve represented by set of points.                                |
+!   or any other curve represented by set of points.                                | 
 !   if the coordinates are given in Cartesian coord., then usual Eulerian norm is   |
 !   used to calculate the distance.                                                 |
 !   If the coordinates are given in spherical coord., than Haversine Formula is used|
@@ -63,14 +17,14 @@ contains
   USE o_MESH
   USE o_ARRAYS
   USE o_PARAM
-
+  
   IMPLICIT NONE
-
+  
   REAL(kind=WP)            :: Dist2in1
   real(kind=WP),INTENT(IN) :: X1, X2
   real(kind=WP)            :: a, d, cos_X2
   integer                  :: n,j
-
+  
    if (cartesian) then
       d = minval((X1obn(:) - X1)**2 + (X2obn(:) - X2)**2)
       Dist2in1 = sqrt(d) *r_earth
@@ -82,12 +36,12 @@ contains
                 + cos_X2 * cos(X2obn(:)) * sin((X1obn(:) - X1)*0.5_WP)**2 )
 
       Dist2in1 = 2._WP *  r_earth * asin(min(1.0_WP,sqrt(a)))
-   endif
-   RETURN
+   endif   
+   RETURN 
 
    END FUNCTION Dist2in1
-
-function scal_diff_grad(var1,elnodes)
+   
+function scal_diff_grad(var1,elnodes)   
 !=====================================================================================|
 USE o_MESH
 USE o_ARRAYS
@@ -101,10 +55,10 @@ USE o_PARAM
    integer                  :: enodes(6),j
 
    if(elnodes(1)==elnodes(4)) then
-
-   delta31=var1(3)-var1(1)
+   
+   delta31=var1(3)-var1(1) 
    delta21=var1(2)-var1(1)
-
+   
    varg(1)=(delta31-delta21)
    varg(2)=-delta31
    varg(3)= delta21
@@ -116,7 +70,7 @@ USE o_PARAM
    enodes(6)=enodes(2)
 
    varg(:)=0.0_WP
-   DO j=2,5    ! Nodes are listed clockwise n=(-dy, dx)
+   DO j=2,5    ! Nodes are listed clockwise n=(-dy, dx)        
    varg(j-1)=(var1(enodes(j+1))-var1(enodes(j-1)))
    varg(j-1+4)=(var1(enodes(j+1))-var1(enodes(j-1)))
    end do
@@ -124,9 +78,81 @@ USE o_PARAM
 scal_diff_grad=varg
 return
  end function scal_diff_grad
+!=====================================================================================|
+subroutine update_info_riv(rk,n_dt2,turn_on_riv)   
+
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+   IMPLICIT NONE
+   integer,INTENT(INOUT)    ::rk,n_dt2
+   integer,INTENT(IN)       ::turn_on_riv
+
+if (riv) then
+if ((rk<size(riv_vt)).and.(riv_vt(rk)<dt*dble(n_dt2)/3600.0_WP)) then
+        rk=rk+1
+	Qr_sig(:,riv_ind_eg-edge2D_in)=Qr_sig_t(:,:,rk)
+	Qr(riv_ind_eg-edge2D_in)=Qr_t(:,rk)
+	Tr_distr(:,riv_ind_eg-edge2D_in)=Tr_distr_t(:,:,rk)
+	Sr_distr(:,riv_ind_eg-edge2D_in)=Sr_distr_t(:,:,rk)	
+	riv_vt(rk)=riv_vt(rk)+riv_vt(rk-1)
+
+ call calc_disch_node_area(rk)
+else 
+if (riv_vt(rk)<dt*dble(n_dt2)/3600.0_WP) then
+riv=.FALSE.
+riv_control=.FALSE.
+write(*,*) 'No information available any more for the rivers'
+endif 
+endif
+else
+if (n_dt2>=turn_on_riv) then
+riv=.TRUE.
+n_dt2=0
+rk=1
+write(*,*) 'Rivers are activated'
+endif
+endif
+
+end subroutine update_info_riv
+!=====================================================================================|
+subroutine update_info_riv_ob(rk2,n_dt2,turn_on_riv)   
+
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+   IMPLICIT NONE
+   integer,INTENT(INOUT)    ::rk2,n_dt2
+   integer,INTENT(IN)       ::turn_on_riv
+
+if (riv_OB) then
+if ((rk2<size(riv_vt2)).and.(riv_vt2(rk2)<dt*dble(n_dt2)/3600.0_WP)) then
+write(*,*) 'Update info about rivers'
+        rk2=rk2+1
+	riv_elev=riv_elev_t(:,rk2)
+	Tr_distr2=Tr_distr_t2(:,:,rk2)
+	Sr_distr2=Sr_distr_t2(:,:,rk2)	
+	riv_vt2(rk2)=riv_vt2(rk2)+riv_vt2(rk2-1)
+else
+if (riv_vt2(rk2)<dt*dble(n_dt2)/3600.0_WP) then
+riv_OB=.FALSE.
+riv_control_ob=.FALSE.
+write(*,*) 'No information available any more for the rivers'
+endif 
+endif
+else
+if (n_dt2>=turn_on_riv) then
+riv_OB=.TRUE.
+n_dt2=0
+rk2=1
+write(*,*) 'Rivers are activated'
+endif
+endif
+
+end subroutine update_info_riv_ob
 
 !=====================================================================================|
-subroutine update_info_sed(sk)
+subroutine update_info_sed(sk)   
 
 USE o_MESH
 USE o_ARRAYS
@@ -142,7 +168,7 @@ else
 if (sed_vt2(sk)<dt*dble(n_dt)/3600.0_WP) then
 sed_boun_flux=.FALSE.
 write(*,*) 'No information available any more for the sed. conc. at the ob'
-endif
+endif 
 endif
 
 end subroutine update_info_sed
@@ -165,7 +191,7 @@ subroutine ac_create_Xobn
   IMPLICIT NONE
 
   integer                    :: n,j
-
+   
   j=0
   do n=1,nod2D
      if (index_nod2D_glob(n) == 2) then
@@ -181,7 +207,7 @@ subroutine ac_create_Xobn
 
 END subroutine ac_create_Xobn
 
-subroutine ac_create(gc)
+subroutine ac_create(gc)          
 
 !=====================================================================================|
 !   This function calculates the coefficient ac (0<=ac<=1), which will be multiplied  |
@@ -200,12 +226,13 @@ subroutine ac_create(gc)
   REAL(kind=WP),INTENT(INOUT):: gc(myDim_nod2D+eDim_nod2D)
   real(kind=WP)              :: d2obn
   integer                    :: n,j, fID
-
+   
 !SHDB   print *,'Entering ac_create',mynobn,nobn
+
   do n=1,myDim_nod2D+eDim_nod2D
-
+      
      d2obn = Dist2in1( coord_nod2D(1,n),  coord_nod2D(2,n))
-
+      
      if (d2obn < SL_radius) gc(n)=d2obn/SL_radius
 
   enddo
@@ -220,7 +247,73 @@ subroutine ac_create(gc)
 END subroutine ac_create
 
 
- FUNCTION SCAN_FILE(FNAME,VNAME,ISCAL,FSCAL,IVEC,FVEC,CVEC,NSZE,CVAL,LVAL)
+   
+subroutine  find_left_ne(ar_ed, ed0,ind,n)          
+
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+   IMPLICIT NONE
+   integer,INTENT(INOUT):: ind
+   integer,INTENT(IN):: n
+   integer,INTENT(IN):: ed0, ar_ed(n)
+   real(kind=WP):: ai(n), ai0
+   integer                ::   flag,k
+   
+  ai(1:n)=edge_nodes(2,ar_ed)
+  ai0=edge_nodes(1,ed0)
+  
+    if (any(ai==ai0)) then
+   flag=1
+   k=1
+   do while(flag==1)
+  if(ai(k)==ai0) then
+  flag=0
+  ind=k
+  else
+  k=k+1
+  endif
+  enddo
+  else
+  ind=0
+  endif
+ 
+END subroutine find_left_ne
+
+subroutine find_right_ne(ar_ed, ed0,ind,n)          
+
+USE o_MESH
+USE o_ARRAYS
+USE o_PARAM
+   IMPLICIT NONE
+   integer,INTENT(INOUT):: ind
+   integer,INTENT(IN):: n
+   integer,INTENT(IN):: ed0, ar_ed(n)
+   real(kind=WP):: ai(n), ai0
+   integer                ::   flag,k
+   
+   
+  ai(1:n)=edge_nodes(1,ar_ed)
+  ai0=edge_nodes(2,ed0)
+  
+   if (any(ai==ai0)) then
+   flag=1
+   k=1
+   do while(flag==1)
+  if(ai(k)==ai0) then
+  flag=0
+  ind=k
+  else
+  k=k+1
+  endif
+  enddo
+  else
+  ind=0
+  endif
+
+END subroutine find_right_ne
+
+ FUNCTION SCAN_FILE(FNAME,VNAME,ISCAL,FSCAL,IVEC,FVEC,CVEC,NSZE,CVAL,LVAL)           
 
 !==============================================================================|
 !   This function is taken from FVCOM source code                              |
@@ -236,17 +329,17 @@ END subroutine ac_create
 !   REQUIRED INPUT:		        				       |
 !        FNAME = File Name					               |
 !        FSIZE = Length of Filename					       |
-!                                                                              |
-!   OPTIONAL (MUST PROVIDE ONE)        					       |
+!                                                                              | 
+!   OPTIONAL (MUST PROVIDE ONE)        					       | 
 !        ISCAL = INTEGER SCALAR					               |
-!        FSCAL = FLOAT SCALAR  						       |
+!        FSCAL = FLOAT SCALAR  						       | 
 !        CVAL = CHARACTER VARIABLE                                             |
 !        LVAL = LOGICAL VARIABLE                                               |
 !        IVEC = INTEGER VECTOR **                                              |
 !        FVEC = FLOAT VECTOR **                                                |
 !        CVEC = STRING VECTOR **                         |
 !      **NSZE = ARRAY SIZE (MUST BE PROVIDED WITH IVEC/FVEC)                   |
-!                                                                              |
+!                                                                              | 
 !==============================================================================|
 
 USE o_PARAM
@@ -258,8 +351,8 @@ USE o_PARAM
    CHARACTER(LEN=3), OPTIONAL      :: CVEC(*)
    CHARACTER(LEN=80), OPTIONAL      :: CVAL
    LOGICAL, INTENT(INOUT), OPTIONAL :: LVAL
-   INTEGER, INTENT(INOUT), OPTIONAL :: NSZE
-
+   INTEGER, INTENT(INOUT), OPTIONAL :: NSZE 
+   
 !------------------------------------------------------------------------------|
 
    INTEGER :: SCAN_FILE
@@ -285,7 +378,7 @@ USE o_PARAM
      RETURN
    END IF
 
-   OPEN(10,FILE=TRIM(FNAME)) ; REWIND(10)
+   OPEN(10,FILE=TRIM(FNAME)) ; REWIND(10) 
 
 !==============================================================================|
 !            SCAN THE FILE FOR THE VARIABLE NAME                               |
@@ -294,7 +387,7 @@ USE o_PARAM
    NSET = 0
    NLINE = 0
    DO WHILE(.TRUE.)
-     TLINE(1:LEN(TLINE)) = ' '
+     TLINE(1:LEN(TLINE)) = ' ' 
      NREP  = 0
      NLINE = NLINE + 1
      READ(10,'(a)',END=20) INPLINE
@@ -320,7 +413,7 @@ USE o_PARAM
          IF( TLINE(I-1:I) == '\\') TLINE(I-1:I) = '  '
        END DO
      END IF
-
+       
 !----PROCESS THE LINE----------------------------------------------------------!
      CALL GET_VAL(NLINE,LEN_TRIM(TLINE),ADJUSTL(TLINE),VARNAME,VARTYPE,LOGVAL,&
                  STRINGVAL,REALVAL,INTVAL,NVAL)
@@ -332,7 +425,7 @@ USE o_PARAM
        IF(PRESENT(ISCAL))THEN
          IF(VARTYPE == 'integer')THEN
            ISCAL = INTVAL(1)
-		   CLOSE(10)
+		   CLOSE(10) 
            RETURN
          ELSE
            SCAN_FILE = -3
@@ -340,24 +433,24 @@ USE o_PARAM
        ELSE IF(PRESENT(FSCAL))THEN
          IF(VARTYPE == 'float')THEN
            FSCAL = REALVAL(1)
-		   CLOSE(10)
+		   CLOSE(10) 
            RETURN
          ELSE
            SCAN_FILE = -3
          END IF
        ELSE IF(PRESENT(CVAL))THEN
          IF(VARTYPE == 'string')THEN
-           CVAL = STRINGVAL(1)
+           CVAL = STRINGVAL(1) 
 		!   write (*,*), cval
-           CLOSE(10)
+           CLOSE(10) 
            RETURN
          ELSE
            SCAN_FILE = -3
          END IF
        ELSE IF(PRESENT(LVAL))THEN
          IF(VARTYPE == 'logical')THEN
-           LVAL = LOGVAL
-		   CLOSE(10)
+           LVAL = LOGVAL 
+		   CLOSE(10) 
            RETURN
          ELSE
            SCAN_FILE = -3
@@ -365,35 +458,35 @@ USE o_PARAM
        ELSE IF(PRESENT(IVEC))THEN
          IF(NVAL > 1)THEN
            IF(VARTYPE == 'integer')THEN
-             IVEC(1:NVAL) = INTVAL(1:NVAL)
-             NSZE = NVAL
-             CLOSE(10)
+             IVEC(1:NVAL) = INTVAL(1:NVAL) 
+             NSZE = NVAL 
+             CLOSE(10) 			 
              RETURN
            ELSE
              SCAN_FILE = -3
            END IF
            ELSE
-           SCAN_FILE = -4
+           SCAN_FILE = -4 
          END IF
        ELSE IF(PRESENT(FVEC))THEN
          IF(NVAL > 1)THEN
            IF(VARTYPE == 'float')THEN
-             FVEC(1:NVAL) = REALVAL(1:NVAL)
+             FVEC(1:NVAL) = REALVAL(1:NVAL) 
              NSZE = NVAL
-             CLOSE(10)
+             CLOSE(10) 			 
              RETURN
            ELSE
              SCAN_FILE = -3
            END IF
          ELSE
-           SCAN_FILE = -4
+           SCAN_FILE = -4 
          END IF
        ELSE IF(PRESENT(CVEC))THEN
          IF(NVAL > 0)THEN
            IF(VARTYPE == 'string')THEN
              CVEC(1:NVAL) = STRINGVAL(2:NVAL+1)
-             NSZE = NVAL
-			 CLOSE(10)
+             NSZE = NVAL 
+			 CLOSE(10) 
              RETURN
            ELSE
              SCAN_FILE = -3
@@ -405,14 +498,14 @@ USE o_PARAM
          SCAN_FILE = -5
        END IF
      END IF  !!VARIABLE IS CORRECT
-
+            
    END DO !!LOOP OVER INPUT FILE
- 20 CLOSE(10)
+ 20 CLOSE(10) 
    SCAN_FILE = -2
-   RETURN
+   RETURN 
 
    END FUNCTION SCAN_FILE
-
+   
    !==============================================================================!
 !  DECOMPOSE INPUT LINE INTO VARIABLE NAME AND VARIABLE VALUE(S)               !
 !==============================================================================!
@@ -436,17 +529,17 @@ USE o_PARAM
   CHARACTER(LEN=NUMCHAR) :: VARVAL,TEMP,FRAG(200)
   CHARACTER(LEN=80) :: TSTRING
   CHARACTER(LEN=6) :: ERRSTRING
-  CHARACTER(LEN=16) :: NUMCHARS
+  CHARACTER(LEN=16) :: NUMCHARS 
   INTEGER LENGTH,EQLOC,LVARVAL,DOTLOC
   INTEGER I,J,LOCEX,NP
   LOGICAL ONFRAG
 
 !==============================================================================!
   FRAG = " "
-  NUMCHARS = "0123456789+-Ee. "
+  NUMCHARS = "0123456789+-Ee. " 
   VARTYPE = "error"
   LOGVAL = .FALSE.
-  LENGTH = LEN_TRIM(TEXT_LINE)
+  LENGTH = LEN_TRIM(TEXT_LINE) 
   WRITE(ERRSTRING,"(I6)") LNUM
   LOCEX = INDEX(TEXT_LINE,"!")
 
@@ -492,7 +585,7 @@ USE o_PARAM
 !
 !  CHECK FOR LOGICAL
 !
-   IF((VARVAL(1:1) == "T" .OR. VARVAL(1:1) == "F") .AND. LVARVAL == 1)THEN
+   IF((VARVAL(1:1) == "T" .OR. VARVAL(1:1) == "F") .AND. LVARVAL == 1)THEN 
      VARTYPE = "logical"
      IF(VARVAL(1:1) == "T") LOGVAL = .TRUE.
      RETURN
@@ -502,7 +595,7 @@ USE o_PARAM
 !  CHECK IF IT IS A STRING  (CONTAINS CHARACTERS OTHER THAN 0-9,+,-,e,E,.)
 !
    DO I=1,LVARVAL
-     IF(INDEX(NUMCHARS,VARVAL(I:I)) == 0) VARTYPE = "string"
+     IF(INDEX(NUMCHARS,VARVAL(I:I)) == 0) VARTYPE = "string" 
    END DO
 
 !
@@ -510,7 +603,7 @@ USE o_PARAM
 !
    IF(VARTYPE == "string") THEN
      TSTRING = VARVAL
-     STRINGVAL(1) = TSTRING
+     STRINGVAL(1) = TSTRING 
      NVAL = 1
      ONFRAG = .TRUE.
      DO I=1,LVARVAL
@@ -544,7 +637,7 @@ USE o_PARAM
    NP = 1
    ONFRAG = .TRUE.
    DO I=1,LVARVAL
-     IF(VARVAL(I:I) /= " ")THEN
+     IF(VARVAL(I:I) /= " ")THEN 
        FRAG(NP) = TRIM(FRAG(NP))//VARVAL(I:I)
        ONFRAG = .TRUE.
      ELSE
@@ -555,18 +648,18 @@ USE o_PARAM
 !
 !-----------------EXTRACT NUMBER(S) FROM CHARACTER STRINGS----------------------!
 !
-
+   
    NVAL = NP
    DO I=1,NP
      TEMP = TRIM(FRAG(I))
-     IF(VARTYPE == "float") THEN
+     IF(VARTYPE == "float") THEN 
        READ(TEMP,*)REALVAL(I)
      ELSE
        READ(TEMP,*)INTVAL(I)
      END IF
    END DO
 
-END SUBROUTINE GET_VAL
+END SUBROUTINE GET_VAL 
 
 END MODULE o_UTILIT
 
@@ -589,8 +682,8 @@ subroutine compute_el2nodes_2D(var_e,var_n)
   REAL(kind=WP),INTENT(OUT):: var_n(myDim_nod2D)
 
 !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(n,num)
-  DO n=1, myDim_nod2D
-
+  DO n=1, myDim_nod2D 
+   
      num = nod_in_elem2D_num(n)
 
      var_n(n) = sum(var_e(nod_in_elem2D(1:num,n))*elem_area(nod_in_elem2D(1:num,n))) &
@@ -620,17 +713,17 @@ REAL(kind=WP),INTENT(OUT):: var1_n(nod2D),  var2_n(nod2D)
 integer                  :: n, num
 real(kind=WP)            :: area_inv
 
-!$OMP DO
-DO n=1, nod2D
-
+!$OMP DO 
+DO n=1, nod2D 
+   
    num = nod_in_elem2D_num(n)
    area_inv = 1._WP / sum(elem_area(nod_in_elem2D(1:num,n)))
 
    var1_n(n) = sum(var1_e(nod_in_elem2D(1:num,n))*elem_area(nod_in_elem2D(1:num,n))) &
-              * area_inv
+              * area_inv                           
 
    var2_n(n) = sum(var2_e(nod_in_elem2D(1:num,n))*elem_area(nod_in_elem2D(1:num,n))) &
-              * area_inv
+              * area_inv                           
 END DO
 !$OMP END DO
 end subroutine compute_el2nodes_2D_2fields
@@ -666,21 +759,21 @@ subroutine compute_el2nodes_3D(Ue,Ve,Un,Vn)
 
 
 !$OMP DO
-  DO n=1, myDim_nod2D
+  DO n=1, myDim_nod2D 
 
      num = nod_in_elem2D_num(n)
-
+   
      tvol_inv = 1._WP/sum(elem_area(nod_in_elem2D(1:num,n)))
 
-     Un(1:nsigma-1,n) = 0._WP
-     Vn(1:nsigma-1,n) = 0._WP
+     Un(1:nsigma-1,n) = 0._WP 
+     Vn(1:nsigma-1,n) = 0._WP 
 
      DO k=1,num
-        el=nod_in_elem2D(k,n)
+        el=nod_in_elem2D(k,n)      
 
         Un(1:nsigma-1,n) = Un(1:nsigma-1,n) + Ue(1:nsigma-1,el)*elem_area(el)
         Vn(1:nsigma-1,n) = Vn(1:nsigma-1,n) + Ve(1:nsigma-1,el)*elem_area(el)
-
+      
      END DO
 
      Un(1:nsigma-1,n) = Un(1:nsigma-1,n)*tvol_inv
@@ -691,11 +784,11 @@ subroutine compute_el2nodes_3D(Ue,Ve,Un,Vn)
 
 #ifdef USE_MPI
   call exchange_nod(Un)
-  call exchange_nod(Vn)
+  call exchange_nod(Vn) 
 #endif
 
-!SHDB print *,'UnA:',mype,minval(Un),maxval(Un)
-!SHDB print *,'VnA:',mype,minval(Vn),maxval(Vn)
+!!$print *,'UnA:',mype,minval(Un),maxval(Un)
+!!$print *,'VnA:',mype,minval(Vn),maxval(Vn)
 
 end subroutine compute_el2nodes_3D
 

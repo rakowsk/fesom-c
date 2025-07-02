@@ -400,91 +400,94 @@ SUBROUTINE vel_lapl_gradients(U_c,V_c)
 #endif
 
 END SUBROUTINE vel_lapl_gradients
+
 !=================================================================================
+
 SUBROUTINE vel_gradients_puls
-! Compute derivatives of 3D velocity by least square interpolation.
-! The interpolation coefficients are already saved
-! For the no-slip case, it is assumed that velocity at 
-! the boundary edge == 0. For the free-slip case, there are only 2
-! neighbours
-!
-!a modification by Alexey Androsov
-!a (for sigma coordinates, and for tri-quad elements)
-!a 09.10.14
-!
-USE o_MESH
-USE o_ARRAYS
-USE o_PARAM
+  ! Compute derivatives of 3D velocity by least square interpolation.
+  ! The interpolation coefficients are already saved
+  ! For the no-slip case, it is assumed that velocity at 
+  ! the boundary edge == 0. For the free-slip case, there are only 2
+  ! neighbours
+
+  !a modification by Alexey Androsov
+  !a (for sigma coordinates, and for tri-quad elements)
+  !a 09.10.14
+
+  USE o_MESH
+  USE o_ARRAYS
+  USE o_PARAM
 
   use g_parsup
   use g_comm_auto
 
-IMPLICIT NONE
-real(kind=WP)    :: u, v, un
-real(kind=WP)    :: zc(2), grad_aux(4,nsigma-1)
-real(kind=WP)    :: u_aux(nsigma), v_aux(nsigma)
-integer         :: elem, el, j, nz, elnodes(4), jend
+  IMPLICIT NONE
+
+  real(kind=WP)    :: u, v, un
+  real(kind=WP)    :: zc(2), grad_aux(4,nsigma-1)
+  real(kind=WP)    :: u_aux(nsigma), v_aux(nsigma)
+  integer         :: elem, el, j, nz, elnodes(4), jend
 
   DO elem=1, myDim_elem2D
-   elnodes=elem2D_nodes(:,elem)
-    jend = 4
-    if(elnodes(1)==elnodes(4)) jend = 3
-      grad_aux=0.0_WP
-      DO j=1,jend
-	  el=elem_neighbors(j,elem)
+     elnodes=elem2D_nodes(:,elem)
+     jend = 4
+     if(elnodes(1)==elnodes(4)) jend = 3
+     grad_aux=0.0_WP
+     DO j=1,jend
+        el=elem_neighbors(j,elem)
       
-	  if (el>0) then
-		! ======================
-		! Filling in velocity gradients:
-		! ======================
-	     DO nz=1, nsigma-1
-		u=U_puls(nz,el)-U_puls(nz,elem)
-                v=V_puls(nz,el)-V_puls(nz,elem)
-         	grad_aux(1,nz)=grad_aux(1,nz)+gradient_vec(j,elem)*u
-		grad_aux(2,nz)=grad_aux(2,nz)+gradient_vec(j+4,elem)*u
-		grad_aux(3,nz)=grad_aux(3,nz)+gradient_vec(j,elem)*v
-		grad_aux(4,nz)=grad_aux(4,nz)+gradient_vec(j+4,elem)*v
-	     END DO
+        if (el>0) then
+           ! ======================
+           ! Filling in velocity gradients:
+           ! ======================
+           DO nz=1, nsigma-1
+              u=U_puls(nz,el)-U_puls(nz,elem)
+              v=V_puls(nz,el)-V_puls(nz,elem)
+              grad_aux(1,nz)=grad_aux(1,nz)+gradient_vec(j,elem)*u
+              grad_aux(2,nz)=grad_aux(2,nz)+gradient_vec(j+4,elem)*u
+              grad_aux(3,nz)=grad_aux(3,nz)+gradient_vec(j,elem)*v
+              grad_aux(4,nz)=grad_aux(4,nz)+gradient_vec(j+4,elem)*v
+           END DO
 
-	  else
-	  ! ===============
-	  ! Boundary element
-	  ! ===============
-	  !    (Here we do not have place for virtual velocities
-	  !     in the velocity array so we use auxiliary array)
-	  ! ======================
-	     if(free_slip) then
-	       zc=edge_dxdy(:,elem_edges(j,elem))
-	       zc(1)=zc(1)*elem_cos(elem)
-	       DO nz=1,nsigma-1
-		  un=-2*(U_puls(nz,elem)*zc(2)-V_puls(nz,elem)*zc(1))/sum(zc*zc)
-                  u_aux(nz)=U_puls(nz,elem)+un*zc(2)
-                  v_aux(nz)=V_puls(nz,elem)-un*zc(1)
-	       END DO
-             else     ! noslip
-	       DO nz=1,nsigma-1
-		  u_aux(nz)=-U_puls(nz,elem)
-		  v_aux(nz)=-V_puls(nz,elem)     
-	       END DO
-	     end if 
-		 ! ======================
-		 ! Filling in velocity gradients:
-		 ! ======================
-	     DO nz=1, nsigma-1
-		u=u_aux(nz)-U_puls(nz,elem)
-                v=v_aux(nz)-V_puls(nz,elem)
-         	grad_aux(1,nz)=grad_aux(1,nz)+gradient_vec(j,elem)*u
-		grad_aux(2,nz)=grad_aux(2,nz)+gradient_vec(j+4,elem)*u
-		grad_aux(3,nz)=grad_aux(3,nz)+gradient_vec(j,elem)*v
-		grad_aux(4,nz)=grad_aux(4,nz)+gradient_vec(j+4,elem)*v
-	     END DO
-	   end if
-	  end do   ! cycle over neighbor elements
-         vel_grad_ux(1:nsigma-1,elem)=grad_aux(1,1:nsigma-1)
-	 vel_grad_uy(1:nsigma-1,elem)=grad_aux(2,1:nsigma-1)
-	 vel_grad_vx(1:nsigma-1,elem)=grad_aux(3,1:nsigma-1)
-	 vel_grad_vy(1:nsigma-1,elem)=grad_aux(4,1:nsigma-1)
-  END DO	
+        else
+           ! ===============
+           ! Boundary element
+           ! ===============
+           !    (Here we do not have place for virtual velocities
+           !     in the velocity array so we use auxiliary array)
+           ! ======================
+           if(free_slip) then
+              zc=edge_dxdy(:,elem_edges(j,elem))
+              zc(1)=zc(1)*elem_cos(elem)
+              DO nz=1,nsigma-1
+                 un=-2*(U_puls(nz,elem)*zc(2)-V_puls(nz,elem)*zc(1))/sum(zc*zc)
+                 u_aux(nz)=U_puls(nz,elem)+un*zc(2)
+                 v_aux(nz)=V_puls(nz,elem)-un*zc(1)
+              END DO
+           else     ! noslip
+              DO nz=1,nsigma-1
+                 u_aux(nz)=-U_puls(nz,elem)
+                 v_aux(nz)=-V_puls(nz,elem)     
+              END DO
+           end if
+           ! ======================
+           ! Filling in velocity gradients:
+           ! ======================
+           DO nz=1, nsigma-1
+              u=u_aux(nz)-U_puls(nz,elem)
+              v=v_aux(nz)-V_puls(nz,elem)
+              grad_aux(1,nz)=grad_aux(1,nz)+gradient_vec(j,elem)*u
+              grad_aux(2,nz)=grad_aux(2,nz)+gradient_vec(j+4,elem)*u
+              grad_aux(3,nz)=grad_aux(3,nz)+gradient_vec(j,elem)*v
+              grad_aux(4,nz)=grad_aux(4,nz)+gradient_vec(j+4,elem)*v
+           END DO
+        end if
+     end do   ! cycle over neighbor elements
+     vel_grad_ux(1:nsigma-1,elem)=grad_aux(1,1:nsigma-1)
+     vel_grad_uy(1:nsigma-1,elem)=grad_aux(2,1:nsigma-1)
+     vel_grad_vx(1:nsigma-1,elem)=grad_aux(3,1:nsigma-1)
+     vel_grad_vy(1:nsigma-1,elem)=grad_aux(4,1:nsigma-1)
+  END DO
 
 #ifdef USE_MPI
   call exchange_elem(vel_grad_ux)
@@ -494,4 +497,5 @@ integer         :: elem, el, j, nz, elnodes(4), jend
 #endif
 
 END SUBROUTINE vel_gradients_puls
+
 !===================================================================================

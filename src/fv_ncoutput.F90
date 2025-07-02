@@ -8,18 +8,10 @@ MODULE fv_ncoutput
    !!          0.9 ! 12/2015 I. Kuznetsov
    !!           new output structures, multiple files, averaging and snapshots, automatic control
    !!          0.95 ! 05/2016 I. Kuznetsov
-   !!           improved output structures, now every file has possibility to save on specific nodes (stations, transaction, zoom field) (but cannot write yet zooms),
+   !!           improved output structures, now every file has possibility to save on specific nodes (stations, transaction, zoom field),
    !!           filelist(1)%ftype and filelist(1)%pos?_?? positions added to outputfilelist
-   !!          0.99 ! 12/2018 I. Kuznetsov
-   !!           bug fix: w_cv, x and y on elements
-   !!           add:  additional info to mesh: nod_in_elem2d, nod_in_elem2d_num, depth_elem...
-   !!           mesh writes correct on both Cartesian and non Cartesian coordinates
-   !!           looking for nearest stations in both cases.
-   !!           checked averaging function
    !!
    !! Description:
-   !!     * restart done every N steps, if run was from restart, then counter will start again.
-   !!       to avoid problems with combining files use Restart N / output step  = int
    !!    first initialization of netcdf file before first time step should be done.
    !!    at each time step subroutine output_do should be called
    !!    Warning: in case of variable dt (time step) averaging will be incorrect
@@ -79,8 +71,8 @@ MODULE fv_ncoutput
    USE o_MESH
    USE o_ARRAYS
    USE o_PARAM
-   USE i_ARRAYS
-   USE i_PARAM
+   USE fv_sbc
+
    IMPLICIT NONE
 
    include 'netcdf.inc'
@@ -146,15 +138,15 @@ MODULE fv_ncoutput
       end type varlist_type
 
       type  ::   dimid_type    ! list of dimensions ID in netCDF files
-         integer              :: node, nelem,maxnod, time, sigma, sigmam1, maxnodelem
+         integer              :: node, nelem,maxnod, time, sigma, sigmam1
       end type dimid_type
-      type  ::   varid_type    ! list of variables ID in netCDF files
+      type  ::   varid_type    ! list of dimensions ID in netCDF files
          integer              :: nv, mesh, lon, lat, lon_elem, lat_elem, time, &
                                  sigma, sigmam1, elem_area, w_cv, area, &
-                                 nod_in_elem2D, nod_in_elem2D_num, depth, depth_elem
+                                 nod_in_elem2D, nod_in_elem2D_num, depth
       end type varid_type
       integer,parameter      ::   maxnumbervars = 30 ! Maximum number of variables in one file
-      integer,parameter      ::   maxnumberallvars = 100 ! Maximum number of declared variables
+      integer,parameter      ::   maxnumberallvars = 30 ! Maximum number of declared variables
 
 
       type  ::   filelist_type    ! type for descripbing of output files
@@ -165,7 +157,7 @@ MODULE fv_ncoutput
          integer              :: specfreq ! special frequency: read freq =0, daily=1, monthly=2, seasons=3, yearly=4
          integer              :: fileid   ! file ID
          integer              :: numvars  ! number of variables for output in this file
-         integer,dimension(maxnumbervars):: vars     ! list of variables id from varlist (varid) which should be put in this file
+         integer,dimension(maxnumbervars):: vars     ! list of variables id from varlist (varid) wich should be put in this file
          integer,dimension(maxnumbervars):: varsid   ! ID of each variable in netCDF file
          integer,dimension(maxnumbervars):: fid      ! index in var?d array
          integer,dimension(maxnumbervars):: avgid    ! index in var?d%avg array
@@ -204,9 +196,6 @@ CONTAINS
       integer              :: nvar  ! temporal variable ID
       integer              :: i, ndim
       integer              :: varsize(2)  ! size of dimensions
-      character(len = 100) :: tmp,vname ! name
-      character(len = 3)   :: vnamef ! name
-
 
       nvar=0
       nvar=nvar+1
@@ -449,175 +438,6 @@ CONTAINS
       varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
       varlist(nvar)%type_task =      1 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
       varlist(nvar)%varid =          nvar !24 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'windx' ! name
-      varlist(nvar)%modelname =      'winds' ! name of variable in model
-      varlist(nvar)%standard_name =  'wind along x direction on node'!
-      varlist(nvar)%units =          'm/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      1 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !25 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'windy' ! name
-      varlist(nvar)%modelname =      'windy' ! name of variable in model
-      varlist(nvar)%standard_name =  'wind along y direction on node'!
-      varlist(nvar)%units =          'm/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      1 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !26 ! ID of variable
-
-      nvar=nvar+1
-      varlist(nvar)%name =           'w' ! name
-      varlist(nvar)%modelname =      'Wvel' ! name of variable in model
-      varlist(nvar)%standard_name =  'vertical velocity'! full variable name in the NetCDF file
-      varlist(nvar)%units =          'm/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        1 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      2 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !27 ! ID of variable
-
-      nvar=nvar+1
-      varlist(nvar)%name =           'snu' ! name
-      varlist(nvar)%modelname =      'snu' ! name of variable in model
-      varlist(nvar)%standard_name =  'snu'! full variable name in the NetCDF file
-      varlist(nvar)%units =          ''! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        1 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !28 ! ID of variable
-
-      nvar=nvar+1
-      varlist(nvar)%name =           'bt' ! name
-      varlist(nvar)%modelname =      'bt' ! name of variable in model
-      varlist(nvar)%standard_name =  'turbulent kinetic energy'! full variable name in the NetCDF file
-      varlist(nvar)%units =          ''! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        1 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !29 ! ID of variable
-
-      nvar=nvar+1
-      varlist(nvar)%name =           'ri' ! name
-      varlist(nvar)%modelname =      'Ri' ! name of variable in model
-      varlist(nvar)%standard_name =  'Richardson number'! full variable name in the NetCDF file
-      varlist(nvar)%units =          ''! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        1 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !30 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'm_ice' ! name
-      varlist(nvar)%modelname =      'm_ice' ! name of variable in model
-      varlist(nvar)%standard_name =  'effective ice thickness'
-      varlist(nvar)%units =          'm'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !31 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'm_snow' ! name
-      varlist(nvar)%modelname =      'm_snow' ! name of variable in model
-      varlist(nvar)%standard_name =  'effective snow thickness'!
-      varlist(nvar)%units =          'm'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !32 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'a_ice' ! name
-      varlist(nvar)%modelname =      'a_ice' ! name of variable in model
-      varlist(nvar)%standard_name =  'ice concentation'!
-      varlist(nvar)%units =          'percent'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !33 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           't_skin' ! name
-      varlist(nvar)%modelname =      't_skin' ! name of variable in model
-      varlist(nvar)%standard_name =  'temperature of snow/ice top surface'!
-      varlist(nvar)%units =          'grad C'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !34 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'runoff_rivers' ! name
-      varlist(nvar)%modelname =      'runoff_rivers' ! name of variable in model
-      varlist(nvar)%standard_name =  'runoff rivers'!
-      varlist(nvar)%units =          'm3/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly
-      varlist(nvar)%type_task =      1 ! T,S,... =3, U_n,V_n,... =2, eta_n,...
-      varlist(nvar)%varid =          nvar !35 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'uice' ! name
-      varlist(nvar)%modelname =      'U_n_ice' ! name of variable in model
-      varlist(nvar)%standard_name =  'ice velocity in x direction'! full variable name in the NetCDF file
-      varlist(nvar)%units =          'm/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         0 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !36 ! ID of variable
-      nvar=nvar+1
-      varlist(nvar)%name =           'vice' ! name
-      varlist(nvar)%modelname =      'U_n_ice' ! name of variable in model
-      varlist(nvar)%standard_name =  'ice velocity in y direction'! full variable name in the NetCDF file
-      varlist(nvar)%units =          'm/s'! variable units in the NetCDF file
-      varlist(nvar)%onnode =         0 ! if on nod =1 , if on elements =0, other =-1
-      varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-      varlist(nvar)%vertdim =        0 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-      varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-      varlist(nvar)%varid =          nvar !37 ! ID of variable
-
-!      if (key_passive_tracers) then
-!        do i = 1, i_pastr
-!          nvar=nvar+1
-!          !write(tmp,*) i
-!          !write(vname,*) 'tr',trim(ADJUSTL(trim(tmp)))
-!          write(vnamef,"(A2,I1)") "tr",i
-!          write(*,*) trim(vnamef)
-!          varlist(nvar)%name          =  trim(vnamef)
-!          varlist(nvar)%modelname =      'Tpass' ! name of variable in model
-!          varlist(nvar)%standard_name =  'Tpass' ! full variable name in the NetCDF file
-!          varlist(nvar)%units =          ''! variable units in the NetCDF file
-!          varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-!          varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-!          varlist(nvar)%vertdim =        2 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-!          varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-!          varlist(nvar)%varid =          nvar !25..size(biomodel%state_variables) ! ID of variable
-!        enddo
-!        write(*,*) "total passive tracers: ", nvar-24
-!       endif
-!      if (key_fabm) then
-!        do i = 1, size(biomodel%state_variables)
-!          nvar=nvar+1
-!          varlist(nvar)%name = biomodel%state_variables(i)%name        ! name
-!          varlist(nvar)%modelname =      'Tpass(:,:,1)' ! name of variable in model
-!          varlist(nvar)%standard_name =  biomodel%state_variables(i)%long_name ! full variable name in the NetCDF file
-!          varlist(nvar)%units =          biomodel%state_variables(i)%units! variable units in the NetCDF file
-!          varlist(nvar)%onnode =         1 ! if on nod =1 , if on elements =0, other =-1
-!          varlist(nvar)%timedim =        1 ! time dimension 0 (not in time), 1 (in time)
-!          varlist(nvar)%vertdim =        2 ! vertical dimension 0 , 1 (verticaly resolved) sigma, 2 sigmam1
-!          varlist(nvar)%type_task =      3 ! T,S,... =3, U_n,V_n,... =2, eta_n,... =1
-!          varlist(nvar)%varid =          nvar !25..size(biomodel%state_variables) ! ID of variable
-!        enddo
-!        write(*,*) "total state_variables: ", nvar-24
-!       endif
 !      nvar=nvar+1
 !      varlist(nvar)%name =           'emp_2' ! name
 !      varlist(nvar)%modelname =      'emp_2' ! name of variable in model
@@ -673,7 +493,6 @@ CONTAINS
       if (nvar > maxnumberallvars) then
          write(*,*) "ERROR: too much declared variables; change maxnumberallvars in fv_ncoutput"
          STOP "ERROR: check maxnumberallvars"
-         !well, it does not have a sense, if so, memory error will be.
       end if
 
       do i = 1, nvar
@@ -766,51 +585,15 @@ CONTAINS
          case(24)
             varbas1d(i)%snapshot =  C_d_el
          case(25)
-            varbas1d(i)%snapshot =  windx
+!            varbas1d(i)%snapshot =  emp_2
          case(26)
-            varbas1d(i)%snapshot =  windy
-         case(31)
-            if (use_ice) then
-                varbas1d(i)%snapshot =  m_ice
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(32)
-             if (use_ice) then
-                varbas1d(i)%snapshot =  m_snow
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(33)
-            if (use_ice) then
-                varbas1d(i)%snapshot =  a_ice
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(34)
-            if (use_ice) then
-                varbas1d(i)%snapshot =  t_skin
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(35)
-            if (key_rivers) then
-                varbas1d(i)%snapshot =  runoff_rivers
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(36)
-            if (use_ice) then
-                varbas1d(i)%snapshot =  U_n_ice(1,:)
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
-         case(37)
-            if (use_ice) then
-                varbas1d(i)%snapshot =  U_n_ice(2,:)
-            else
-                varbas1d(i)%snapshot =  0.0_WP
-            endif
+ !           varbas1d(i)%snapshot =  qns_2
+         case(27)
+!            varbas1d(i)%snapshot =  qsr_2
+         case(28)
+ !           varbas1d(i)%snapshot =  taux_node_2
+         case(29)
+!            varbas1d(i)%snapshot =  tauy_node_2
 
       end select
       ! multiply by mask for wetting drying
@@ -822,8 +605,6 @@ CONTAINS
    END SUBROUTINE getvar1d
 !======================   Put your 2D variables here: ========================================
    SUBROUTINE getvar2d(i)
-      USE o_ARRAYS
-
       IMPLICIT NONE
       integer, intent(in) :: i !
       integer  :: nz, nlev
@@ -841,12 +622,6 @@ CONTAINS
             varbas2d(i)%snapshot =  zbar
          case(21)
             varbas2d(i)%snapshot =  z
-         case(27)
-            varbas2d(i)%snapshot =  Wvel
-         case(28)
-            varbas2d(i)%snapshot =  snu
-         case(29)
-            varbas2d(i)%snapshot =  bt
       end select
       ! multiply by mask for wetting drying
       if (varlist(varbas2d(i)%varid)%vertdim == 1) then
@@ -874,14 +649,14 @@ CONTAINS
       call addvar2basket !add variables to varbas?d lists
 
       do i = 1, numfiles
-         if ( mod(n_dt,filelist(i)%freq)==0 .OR. n_dt == 1) then
+         if ( mod(n_dt,filelist(i)%freq)==0 ) then
             ! if it is time to make output
                ! if we need to calculate average values
-            if (filelist(i)%snapshot == 2) call calculateavg(i)
+            if (filelist(i)%snapshot == 0) call calculateavg(i)
 
             call write_data(i) ! write values of snapshots/avg to nc file
              ! put average to 0
-            if (filelist(i)%snapshot == 2) call zeroavg(i)
+            if (filelist(i)%snapshot == 0) call zeroavg(i)
 
          end if
       end do
@@ -940,7 +715,7 @@ CONTAINS
       IMPLICIT NONE
 
 
-      real(wp), allocatable, dimension(:)  :: x, y, depth_elem
+      real(wp), allocatable, dimension(:)  :: x, y
       real(wp)     :: mindist
       integer      :: i,j, k, n, numnodes, elnodes(4), output_alloc
 
@@ -957,15 +732,10 @@ CONTAINS
       integer, allocatable ,dimension(:,:)  :: fid1d_size,fid2d_size !tmp to save size of avg%v
 
       integer,dimension(maxnumbervars):: varssh1    ! temporal array
-      var0d = 0
-      var1d = 0
-      var2d = 0
-      numfid0d = 0
-      numfid1d = 0
-      numfid2d = 0
+
       write(*,*) 'inizialization of netCDF output: start'
 
-      ALLOCATE( x(elem2D), y(elem2D), depth_elem(elem2D), &
+      ALLOCATE( x(elem2D), y(elem2D), &
                    &      STAT=output_alloc )
       if( output_alloc /= 0 )   STOP 'output_ini: failed to allocate arrays'
 
@@ -976,20 +746,10 @@ CONTAINS
          elnodes = elem2D_nodes(:,i) !! 4 nodes in element
          numnodes = 4
          if(elnodes(1)==elnodes(4)) numnodes = 3  !! set to 3 if we have triangle
-         y(i) = w_cv(1,i)*coord_nod2D(2,elnodes(1)) &
-                + w_cv(2,i)*coord_nod2D(2,elnodes(2)) &
-                + w_cv(3,i)*coord_nod2D(2,elnodes(3)) &
-                + w_cv(4,i)*coord_nod2D(2,elnodes(4))
-         x(i) = w_cv(1,i)*coord_nod2D(1,elnodes(1)) &
-                + w_cv(2,i)*coord_nod2D(1,elnodes(2)) &
-                + w_cv(3,i)*coord_nod2D(1,elnodes(3)) &
-                + w_cv(4,i)*coord_nod2D(1,elnodes(4))
-         !sum(coord_nod2d(1,elnodes(1:numnodes)))/dble(numnodes) /rad
-         depth_elem(i) = w_cv(1,i)*depth(elem2D_nodes(1,i)) &
-                       + w_cv(2,i)*depth(elem2D_nodes(2,i)) &
-                       + w_cv(3,i)*depth(elem2D_nodes(3,i)) &
-                       + w_cv(4,i)*depth(elem2D_nodes(4,i))
+         y(i) = sum(coord_nod2d(2,elnodes(1:numnodes)))/dble(numnodes) /rad
+         x(i) = sum(coord_nod2d(1,elnodes(1:numnodes)))/dble(numnodes) /rad
       end do
+
       filelist_unit= 15
       ! define files for output
       ! Read structure from outputfilelist.dat
@@ -1108,8 +868,6 @@ CONTAINS
          call check_nferr(iost,filelist(i)%name)
          iost = nf_def_dim(filelist(i)%fileid, 'maxnod', 4, filelist(i)%dimid%maxnod)
          call check_nferr(iost,filelist(i)%name)
-         iost = nf_def_dim(filelist(i)%fileid, 'maxnodelem', maxval(nod_in_elem2D_num), filelist(i)%dimid%maxnodelem)
-         call check_nferr(iost,filelist(i)%name)
          iost = nf_def_dim(filelist(i)%fileid, 'time', NF_UNLIMITED, filelist(i)%dimid%time)
          call check_nferr(iost,filelist(i)%name)
          if (type_task>1) then
@@ -1125,6 +883,7 @@ CONTAINS
             iost = nf_def_var(filelist(i)%fileid, 'sigma_lev', NF_DOUBLE,1,nf_dims,filelist(i)%varid%sigma)
             call check_nferr(iost,filelist(i)%name)
          endif
+
          !define nv
          nf_dims(1) = filelist(i)%dimid%maxnod
          nf_dims(2) = filelist(i)%dimid%nelem
@@ -1149,6 +908,7 @@ CONTAINS
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%mesh,'face_node_connectivity',len_trim('nv'),'nv')
          call check_nferr(iost,filelist(i)%name)
+
          !  define coordinates on nodes
          nf_dims(1) = filelist(i)%dimid%node
          iost = nf_def_var(filelist(i)%fileid,'lon',NF_DOUBLE,1,nf_dims,filelist(i)%varid%lon)
@@ -1159,21 +919,7 @@ CONTAINS
          iost = nf_def_var(filelist(i)%fileid,'depth',NF_DOUBLE,1,nf_dims,filelist(i)%varid%depth)
          call check_nferr(iost,filelist(i)%name)
 
-         nf_dims(1) = filelist(i)%dimid%nelem
-         iost = nf_def_var(filelist(i)%fileid,'depth_elem',NF_DOUBLE,1,nf_dims,filelist(i)%varid%depth_elem)
-         call check_nferr(iost,filelist(i)%name)
-
          ! add attributes
-         if (cartesian) then
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon,'standard_name',len_trim('X'),'X')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon,'units',len_trim('meters'),'meters')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat,'standard_name',len_trim('Y'),'Y')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat,'units',len_trim('meters'),'meters')
-             call check_nferr(iost,filelist(i)%name)
-         else
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon,'standard_name',len_trim('longitude'),'longitude')
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon,'units',len_trim('degrees_east'),'degrees_east')
@@ -1182,17 +928,12 @@ CONTAINS
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat,'units',len_trim('degrees_east'),'degrees_north')
          call check_nferr(iost,filelist(i)%name)
-         end if
          !depth
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%depth,'standard_name',len_trim('depth'),'depth')
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%depth,'units',len_trim('m'),'m')
          call check_nferr(iost,filelist(i)%name)
-         iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%depth_elem,'standard_name',&
-                                                                   len_trim('depth on elem'),'depth on elem')
-         call check_nferr(iost,filelist(i)%name)
-         iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%depth_elem,'units',len_trim('m'),'m')
-         call check_nferr(iost,filelist(i)%name)
+
          ! define coordinates on elements
          nf_dims(1) = filelist(i)%dimid%nelem
          iost = nf_def_var(filelist(i)%fileid,'lon_elem',NF_DOUBLE,1,nf_dims,filelist(i)%varid%lon_elem)
@@ -1200,23 +941,8 @@ CONTAINS
          iost = nf_def_var(filelist(i)%fileid,'lat_elem',NF_DOUBLE,1,nf_dims,filelist(i)%varid%lat_elem)
          call check_nferr(iost,filelist(i)%name)
          ! add attributes
-
-         if (cartesian) then
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon_elem,'standard_name', &
-                                      & len_trim('X_elements'),'X_elements')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon_elem,'units', &
-                                      & len_trim('meters'),'meters')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat_elem,'standard_name', &
-                                      & len_trim('Y_elements'),'Y_elements')
-             call check_nferr(iost,filelist(i)%name)
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat_elem,'units', &
-                                      & len_trim('meters'),'meters')
-             call check_nferr(iost,filelist(i)%name)
-         else
-             iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon_elem,'standard_name', &
-                                      & len_trim('longitude_elements'),'longitude_elements')
+                                  & len_trim('longitude_elemnts'),'longitude_elemnts')
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lon_elem,'units', &
                                   & len_trim('degrees_east'),'degrees_east')
@@ -1227,13 +953,14 @@ CONTAINS
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%lat_elem,'units', &
                                   & len_trim('degrees_east'),'degrees_north')
          call check_nferr(iost,filelist(i)%name)
-         end if
+
          ! define time
          nf_dims(1)=filelist(i)%dimid%time
          iost = nf_def_var(filelist(i)%fileid,'time',NF_DOUBLE,1,nf_dims,filelist(i)%varid%time)
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%time,'standard_name',len_trim('time'),'time')
          call check_nferr(iost,filelist(i)%name)
+
          !  define elements area, nods area and weights
          nf_dims(1) = filelist(i)%dimid%node
          iost = nf_def_var(filelist(i)%fileid,'area',NF_DOUBLE,1,nf_dims,filelist(i)%varid%area)
@@ -1242,19 +969,13 @@ CONTAINS
          nf_dims(1) = filelist(i)%dimid%nelem
          iost = nf_def_var(filelist(i)%fileid,'elem_area',NF_DOUBLE,1,nf_dims,filelist(i)%varid%elem_area)
          call check_nferr(iost,filelist(i)%name)
+
          nf_dims(1) = filelist(i)%dimid%maxnod
          nf_dims(2) = filelist(i)%dimid%nelem
-         iost = nf_def_var(filelist(i)%fileid,'w_cv', NF_DOUBLE, 2,nf_dims,filelist(i)%varid%w_cv)
+         iost = nf_def_var(filelist(i)%fileid,'w_cv', NF_INT, 2,nf_dims,filelist(i)%varid%w_cv)
          call check_nferr(iost,filelist(i)%name)
          ! define nod_in_elem2D and nod_in_elem2D_num
-         nf_dims(1) = filelist(i)%dimid%node
-         iost = nf_def_var(filelist(i)%fileid,'nod_in_elem2d_num', NF_INT, 1,nf_dims,filelist(i)%varid%nod_in_elem2d_num)
 
-         call check_nferr(iost,filelist(i)%name)
-         nf_dims(1) = filelist(i)%dimid%maxnodelem
-         nf_dims(2) = filelist(i)%dimid%node
-         iost = nf_def_var(filelist(i)%fileid,'nod_in_elem2d', NF_INT, 2,nf_dims,filelist(i)%varid%nod_in_elem2d)
-         call check_nferr(iost,filelist(i)%name)
 
          ! add attributes
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%area,&
@@ -1272,12 +993,7 @@ CONTAINS
          iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%w_cv,&
                                 'standard_name',len_trim(' Scv/Sc'),' Scv/Sc')
          call check_nferr(iost,filelist(i)%name)
-         iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%nod_in_elem2D_num,&
-                                'standard_name',len_trim('node is in N elemets'),'node is in N elemets')
-         call check_nferr(iost,filelist(i)%name)
-         iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%nod_in_elem2D,&
-                                'standard_name',len_trim('node is in elemets'),'node is in elemets')
-         call check_nferr(iost,filelist(i)%name)
+
 !         call calendar_date(floor(time_jd0),yyyy,mm,dd)
 !         ihh=floor((time_jd0-floor(time_jd0))*86400.0/60/60)
 !         imm=floor((86400.0*(time_jd0-floor(time_jd0))-ihh*3600.0)/60)
@@ -1300,6 +1016,7 @@ CONTAINS
          call check_nferr(iost,filelist(i)%name)
 !      iost = nf_put_att_text(filelist(i)%fileid,filelist(i)%varid%time,'calendar',len_trim('julian'),'julian')
 !      call check_nferr(iost,filelist(i)%name)
+
 
          do j = 1, filelist(i)%numvars
             varid = filelist(i)%vars(j)
@@ -1344,7 +1061,6 @@ CONTAINS
 
 
          end do
-
          ! leaving define mode
          iost = nf_enddef(filelist(i)%fileid)
          call check_nferr(iost,filelist(i)%name)
@@ -1360,48 +1076,25 @@ CONTAINS
          ! write down coordinates (nodes)
          nf_start(1)=1
          nf_edges(1)=filelist(i)%nnods
-         if (cartesian) then
-            iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lon,nf_start,nf_edges,&
-                                          coord_nod2d(1,filelist(i)%nods(1:filelist(i)%nnods))*r_earth)
-            call check_nferr(iost,filelist(i)%name)
-            iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lat,nf_start,nf_edges,&
-                                          coord_nod2d(2,filelist(i)%nods(1:filelist(i)%nnods))*r_earth)
-            call check_nferr(iost,filelist(i)%name)
-         else
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lon,nf_start,nf_edges,&
                                           coord_nod2d(1,filelist(i)%nods(1:filelist(i)%nnods))/rad )
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lat,nf_start,nf_edges,&
                                           coord_nod2d(2,filelist(i)%nods(1:filelist(i)%nnods))/rad)
          call check_nferr(iost,filelist(i)%name)
-         end if
          ! write depth
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%depth,nf_start,nf_edges,&
                                           depth(filelist(i)%nods(1:filelist(i)%nnods)))
          call check_nferr(iost,filelist(i)%name)
-         nf_start(1)=1
-         nf_edges(1)=filelist(i)%nelems
-         iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%depth_elem,nf_start,nf_edges,&
-                                          depth_elem(filelist(i)%elems(1:filelist(i)%nelems)))
-         call check_nferr(iost,filelist(i)%name)
          ! write down coordinates (elements)
          nf_start(1)=1
          nf_edges(1)=filelist(i)%nelems
-         if (cartesian) then
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lon_elem,nf_start,nf_edges,&
-                                         x(filelist(i)%elems(1:filelist(i)%nelems))*r_earth)
+                                         x(filelist(i)%elems(1:filelist(i)%nelems)))
          call check_nferr(iost,filelist(i)%name)
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lat_elem,nf_start,nf_edges,&
-                                         y(filelist(i)%elems(1:filelist(i)%nelems))*r_earth)
+                                         y(filelist(i)%elems(1:filelist(i)%nelems)))
          call check_nferr(iost,filelist(i)%name)
-         else
-            iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lon_elem,nf_start,nf_edges,&
-                                         x(filelist(i)%elems(1:filelist(i)%nelems))/rad)
-         call check_nferr(iost,filelist(i)%name)
-            iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%lat_elem,nf_start,nf_edges,&
-                                         y(filelist(i)%elems(1:filelist(i)%nelems))/rad)
-            call check_nferr(iost,filelist(i)%name)
-         end if
          ! write down NV (
          !define nv elem2D_nodes
          nf_start(2)=1
@@ -1429,18 +1122,6 @@ CONTAINS
          nf_edges(1)=4
          iost = nf_put_vara_double(filelist(i)%fileid,filelist(i)%varid%w_cv,nf_start,nf_edges,&
                                         w_cv(1:4,filelist(i)%elems(1:filelist(i)%nelems)))
-         call check_nferr(iost,filelist(i)%name)
-         nf_start(1)=1
-         nf_edges(1)=filelist(i)%nnods
-         iost = nf_put_vara_int(filelist(i)%fileid,filelist(i)%varid%nod_in_elem2D_num,nf_start,nf_edges,&
-                                    nod_in_elem2D_num(filelist(i)%nods(1:filelist(i)%nnods)))
-         call check_nferr(iost,filelist(i)%name)
-         nf_start(2)=1
-         nf_edges(2)=filelist(i)%nnods
-         nf_start(1)=1
-         nf_edges(1)=maxval(nod_in_elem2D_num)
-         iost = nf_put_vara_int(filelist(i)%fileid,filelist(i)%varid%nod_in_elem2D,nf_start,nf_edges,&
-                                    nod_in_elem2D(1:nf_edges(1),filelist(i)%nods(1:filelist(i)%nnods)))
          call check_nferr(iost,filelist(i)%name)
 
          ! close file
@@ -1655,7 +1336,6 @@ CONTAINS
 
       integer, intent(in)  :: findx  ! index of file to write in filelist
       integer              :: i
-      real(kind=WP)        :: tshift
       !open for writing netCDF file
       iost = nf_open(filelist(findx)%name,NF_WRITE,filelist(findx)%fileid)
       call check_nferr(iost,filelist(findx)%name)
@@ -1666,13 +1346,9 @@ CONTAINS
       nf_start(1)=filelist(findx)%nc_rec
       nf_edges(1)=1
       ! time_jd - time_jd0 - is days since begining of simulations
-      ! changed to 2415020.5 (1900-01-01 00:00)
-      tshift = 0.0_WP
-      if (filelist(findx)%snapshot == 2) then
-        tshift = filelist(findx)%freq*dt*0.5_WP/86400.0_WP
-      endif
+      ! changed to 2415021 (1900-01-01)
       iost = nf_put_vara_double(filelist(findx)%fileid,&
-              & filelist(findx)%varid%time,nf_start,nf_edges, time_jd - 2415020.5 - tshift) !time_jd0)
+              & filelist(findx)%varid%time,nf_start,nf_edges, time_jd - 2415021.0) !time_jd0)
       call check_nferr(iost,filelist(findx)%name)
       ! write variables one by one
       do i = 1, filelist(findx)%numvars
@@ -1820,7 +1496,7 @@ CONTAINS
 
 
    SUBROUTINE write_mesh2nc
-   !!!! NOT in USE anymore
+
       IMPLICIT NONE
 
       integer      :: ncid ! netcdf status
@@ -1830,7 +1506,6 @@ CONTAINS
       integer      :: id_lat
       integer      :: id_nele
       integer      :: id_maxnod
-      integer      :: id_maxnodelem
       integer      :: id_nv
       integer      :: id_mesh
       ! temporal arrays
@@ -1856,8 +1531,6 @@ CONTAINS
       iost = nf_def_dim(ncid, 'nele', elem2D, id_nele)
       call check_nferr(iost,file_name)
       iost = nf_def_dim(ncid, 'maxnod', 4, id_maxnod)
-      call check_nferr(iost,file_name)
-      iost = nf_def_dim(ncid, 'maxnodelem', maxval(nod_in_elem2D_num), id_maxnodelem)
       call check_nferr(iost,file_name)
 
       !define nv
@@ -1917,7 +1590,7 @@ CONTAINS
       iost = nf_close(ncid)
       call check_nferr(iost,file_name)
       write(*,*) 'write mesh to ',len_trim(file_name),' done'
-   !!!! NOT in USE anymore
+
    END SUBROUTINE write_mesh2nc
 
    SUBROUTINE check_nferr(iost,fname)
@@ -1982,7 +1655,7 @@ CONTAINS
    mindist = 999999999.9
    if (cartesian) then
       do n = 1, nod2D
-         d = (y/r_earth - coord_nod2D(2,n))**2 + (x/r_earth - coord_nod2D(1,n))**2
+         d = (y - coord_nod2D(2,n))**2 + (x - coord_nod2D(1,n))**2
          d = sqrt(d)
          if ( mindist > d ) then
             ind = n
@@ -1991,8 +1664,8 @@ CONTAINS
       enddo
    else
       do n = 1, nod2D
-         d = sin((y*rad - coord_nod2D(2,n))*0.5_WP)**2 + &
-             cos(coord_nod2D(2,n)) * cos(y*rad) * sin((x*rad - coord_nod2D(1,n))*0.5_WP)**2
+         d = sin((y - coord_nod2D(2,n))*0.5_WP)**2 + &
+             cos(coord_nod2D(2,n)) * cos(y) * sin((x - coord_nod2D(1,n))*0.5_WP)**2
          d = asin(min(1.0_WP,sqrt(d)))
          if ( mindist > d ) then
             ind = n
@@ -2014,27 +1687,23 @@ CONTAINS
    real(kind=WP),intent(in) :: x, y
    integer,intent(out)      :: ind
    real(kind=WP)            :: mindist, d
-   integer                  :: n, elnodes(4)
+   integer                  :: n, numnodes, elnodes(4)
    real(wp),dimension(elem2D)  :: xe, ye
 
       ! get coordinates of elements
    do n = 1, elem2D
       elnodes = elem2D_nodes(:,n) !! 4 nodes in element
-      ye(n) = w_cv(1,n)*coord_nod2D(2,elnodes(1)) &
-             + w_cv(2,n)*coord_nod2D(2,elnodes(2)) &
-             + w_cv(3,n)*coord_nod2D(2,elnodes(3)) &
-             + w_cv(4,n)*coord_nod2D(2,elnodes(4))
-      xe(n) = w_cv(1,n)*coord_nod2D(1,elnodes(1)) &
-             + w_cv(2,n)*coord_nod2D(1,elnodes(2)) &
-             + w_cv(3,n)*coord_nod2D(1,elnodes(3)) &
-             + w_cv(4,n)*coord_nod2D(1,elnodes(4))
+      numnodes = 4
+      if(elnodes(1)==elnodes(4)) numnodes = 3  !! set to 3 if we have triangle
+      ye(n) = sum(coord_nod2d(2,elnodes(1:numnodes)))/dble(numnodes) /rad
+      xe(n) = sum(coord_nod2d(1,elnodes(1:numnodes)))/dble(numnodes) /rad
    end do
 
    mindist = 999999999.9
 
    if (cartesian) then
       do n = 1, elem2D
-         d = (y/r_earth - ye(n))**2 + (x/r_earth - xe(n))**2
+         d = (y - ye(n))**2 + (x - xe(n))**2
          d = sqrt(d)
          if ( mindist > d ) then
             ind = n
@@ -2043,8 +1712,8 @@ CONTAINS
       enddo
    else
       do n = 1, elem2D
-         d = sin((y*rad - ye(n))*0.5_WP)**2 + &
-             cos(ye(n)) * cos(y*rad) * sin((x*rad - xe(n))*0.5_WP)**2
+         d = sin((y - ye(n))*0.5_WP)**2 + &
+             cos(ye(n)) * cos(y) * sin((x - xe(n))*0.5_WP)**2
          d = asin(min(1.0_WP,sqrt(d)))
          if ( mindist > d ) then
             ind = n
