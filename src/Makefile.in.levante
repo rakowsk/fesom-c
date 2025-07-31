@@ -1,0 +1,62 @@
+###########################################
+##
+## Settings for levante.dkrz.de 
+##
+## 1. OpenMPI 5.0.8 and Intel 2021.5.0
+#MPI_PATH=/sw/spack-levante/openmpi-5.0.8-iwvqli
+#PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-one6bd
+#NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-tjqnse
+#FCFLAGS = -O3 -march=core-avx2 -no-prec-div -align
+#FCFLAGS = -g -march=core-avx2 -traceback -fpe:0 -check all
+## 2. OpenMPI 5.0.8 and gcc 13.3.0
+MPI_PATH=/sw/spack-levante/openmpi-5.0.8-b2ewnd
+PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-27uyfq
+NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-3sygi2
+FCFLAGS = -march=core-avx2 -fallow-argument-mismatch 
+
+#####################################################
+# No compiler / MPI specific changes below this line
+#####################################################
+
+# The following packages are independent of the chosen compiler 
+# and MPI above. 
+# Spack uses a more recent gcc as basis instead of gcc 8.5.0 in /usr
+GCC_DIR=/sw/spack-levante/gcc-13.3.0-s2dxrt/lib64
+# metis is just a serial helper lib, gcc compiled is fine
+METIS_DIR=/sw/spack-levante/metis-5.1.0-bzxvp5
+
+###########################################################
+# 
+FC = ${MPI_PATH}/bin/mpifort
+CC = ${MPI_PATH}/bin/mpicc
+##
+MPIFLAGS = -DUSE_MPI 
+FCFLAGS +=  $(MPIFLAGS) 
+
+CCFLAGS = $(FCFLAGS) -DLINUX -DUNDER_ 
+#CCFLAGS = $(FCFLAGS) 
+############################################################
+
+#Linker
+LINK = $(FC)
+
+## PATH TO NETCDF and parallel netcdf
+# Levante: All dependencies for netcdf-fortran (netcdf-c, hdf5,...) are linked by rpath 
+# and do not need to be listed here.
+# However, still, gcc runtime libs are required, and spack's more recent builds rely on gcc 13.3.0.
+# To be on the safe side at run time (it might fall back to system gcc 8.5.0), specify!
+NETCDFINC = -I${PNETCDF_DIR}/include -I${NETCDFF_DIR}/include
+NETCDFLIB = -L${PNETCDF_DIR}/lib -lpnetcdf -Wl,-rpath,${PNETCDF_DIR}/lib \
+            -L${NETCDFF_DIR}/lib -lnetcdff -Wl,-rpath,${NETCDFF_DIR}/lib \
+            -Wl,-rpath,${GCC_DIR}/lib64
+
+# METISLIB, only for initialization of MPI domain decomposition
+METISINC = -I${METIS_DIR}/include
+METISLIB = -L${METIS_DIR}/lib -Wl,-rpath,${METIS_DIR}/lib -lmetis
+
+
+# NAME OF THE EXECUTABLES
+EXE = fesom_coast.exe
+EXE_INI = fv_ini.x
+
+
