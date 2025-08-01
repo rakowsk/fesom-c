@@ -3,16 +3,19 @@
 ## Settings for levante.dkrz.de 
 ##
 ## 1. OpenMPI 5.0.8 and Intel 2021.5.0
-#MPI_PATH=/sw/spack-levante/openmpi-5.0.8-iwvqli
-#PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-one6bd
-#NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-tjqnse
-#FCFLAGS = -O3 -march=core-avx2 -no-prec-div -align
+MPI_PATH=/sw/spack-levante/openmpi-5.0.8-iwvqli
+PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-one6bd
+NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-tjqnse
+## Performance
+FCFLAGS = -O3 -march=core-avx2 -no-prec-div -align array64byte -fma -ftz
+## Debug
 #FCFLAGS = -g -march=core-avx2 -traceback -fpe:0 -check all
+
 ## 2. OpenMPI 5.0.8 and gcc 13.3.0
-MPI_PATH=/sw/spack-levante/openmpi-5.0.8-b2ewnd
-PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-27uyfq
-NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-3sygi2
-FCFLAGS = -march=core-avx2 -fallow-argument-mismatch 
+#MPI_PATH=/sw/spack-levante/openmpi-5.0.8-b2ewnd
+#PNETCDF_DIR=/sw/spack-levante/parallel-netcdf-1.14.0-27uyfq
+#NETCDFF_DIR=/sw/spack-levante/netcdf-fortran-4.6.2-3sygi2
+#FCFLAGS = -fallow-argument-mismatch -O3 -march=znver3 -mtune=znver3 -mfma  
 
 #####################################################
 # No compiler / MPI specific changes below this line
